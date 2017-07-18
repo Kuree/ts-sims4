@@ -1,0 +1,25 @@
+{
+  "name": "sims4",
+  "version": "0.0.1",
+  "description": "A typescript library for Sims 4 Package.",
+  "main": "./dist/sims4.js",
+  "types": "./dist/sims4.d.ts",
+  "dependencies": {
+    "@types/text-encoding": "0.0.31",
+    "bignumber.js": "^4.0.2",
+    "text-encoding": "^0.6.4",
+    "ts-node": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/bignumber.js": "^4.0.2",
+    "@types/chai": "^4.0.1",
+    "@types/mocha": "^2.2.41",
+    "chai": "^4.1.0",
+    "mocha": "^3.4.2"
+  },
+  "scripts": {
+    "test": "mocha -r ts-node/register test/**/*_test.ts"
+  },
+  "author": "Keyi Zhang",
+  "license": "MIT"
+}
