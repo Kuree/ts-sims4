@@ -1,0 +1,32 @@
+import { expect, assert } from 'chai';
+import 'mocha'
+import * as fs from 'fs'
+import * as Package from '../src/package'
+import * as BigNum from 'bignumber.js'
+import * as IO from '../src/io'
+
+describe("Test Package", () => {
+  it("open package", () => {
+    var data = fs.readFileSync("test/files/test.package");
+    var pkg = new Package.Package(data);
+    expect(pkg.Major).to.equal(2);
+    expect(pkg.Minor).to.equal(1);
+    expect(pkg.ResourceEntryList.length).to.equal(2);
+    expect(pkg.ResourceEntryList[0].ResourceType).to.equal(0x0333406C);
+    assert(pkg.ResourceEntryList[0].ResourceInstance.eq(31415926));
+    expect(pkg.ResourceEntryList[1].ResourceType).to.equal(0x034AEECB);
+  });
+
+  it("read entry data", () => {
+    var data = fs.readFileSync("test/files/test.package");
+    var pkg = new Package.Package(data);
+    var tgi = new Package.TGIBlock(0x0333406C, 0x42, new BigNum(31415926))
+    var entry = pkg.getResourceEntry(tgi);
+    assert(entry !== undefined);
+    var stream = pkg.getResourceStream(entry);
+    assert(stream !== undefined);
+    var streamSize = stream instanceof Uint8Array ? stream.length : stream.size;
+    var br = new IO.BinaryReader(stream);
+  });
+});
+

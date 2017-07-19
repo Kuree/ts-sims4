@@ -1,6 +1,14 @@
 /// <reference types="bignumber.js" />
+declare module "interface" {
+    import * as BigNum from 'bignumber.js';
+    export interface ITGIBlock {
+        ResourceType: number;
+        ResourceGroup: number;
+        ResourceInstance: BigNum.BigNumber;
+    }
+}
 declare module "io" {
-    export default class BinaryReader {
+    export class BinaryReader {
         private _pos;
         private _buffer;
         private _littleEndian;
@@ -14,6 +22,7 @@ declare module "io" {
         readUInt64(): BigNumber.BigNumber;
         readFloat(): number;
         readDouble(): number;
+        static convertToUint8Array(blob: Blob | Uint8Array): Uint8Array;
         readBytes(size: number): Uint8Array;
         readChar(): string;
         readString(length: number): string;
@@ -23,6 +32,7 @@ declare module "io" {
         private _shuffle(num, size);
         private _decodeFloat(precisionBits, exponentBits);
         private _readByte(i, size);
+        static combineUint64(hi: number, lo: number): BigNumber.BigNumber;
         private _decodeBigNumber();
         private _decodeInt(bits, signed);
         private _shl(a, b);
@@ -30,18 +40,41 @@ declare module "io" {
         private _checkSize(neededBits);
     }
 }
-declare class Package {
-    private _file;
-    private _fileSize;
-    readonly Major: number;
-    readonly Unknown1: Int8Array;
-    readonly Unknown2: number;
-    IndexSize: number;
-    readonly Unknown3: Int8Array;
-    readonly IndexVersion: number;
-    IndexPosition: number;
-    readonly Unknown4: Int8Array;
-    private readonly HEADER_SIZE;
-    constructor(file: File | Uint8Array);
-    readHeader(blob: Blob): void;
+declare module "package" {
+    import * as Interface from "interface";
+    import * as BigNum from 'bignumber.js';
+    export class Package {
+        private _file;
+        private _fileSize;
+        Major: number;
+        Minor: number;
+        Unknown1: Uint8Array;
+        Unknown2: number;
+        IndexSize: number;
+        Unknown3: Uint8Array;
+        IndexVersion: number;
+        IndexPosition: number;
+        Unknown4: Uint8Array;
+        ResourceEntryList: Array<Interface.ITGIBlock>;
+        private readonly HEADER_SIZE;
+        private readonly FOURCC;
+        private readonly ZLIB;
+        constructor(file: File | Uint8Array);
+        private hdrsize(indextype);
+        private slice(pos, size?);
+        getResourceStream(tgi: Interface.ITGIBlock): Uint8Array | Blob;
+        private readHeader(data);
+    }
+    export class TGIResourceBlock implements Interface.ITGIBlock {
+        ResourceType: number;
+        ResourceGroup: number;
+        ResourceInstance: BigNum.BigNumber;
+        FileSize: number;
+        Memsize: number;
+        Compressed: number;
+        ChunkOffset: number;
+        Unknown1: number;
+        Committed: number;
+        constructor(header: Int32Array, entry: Int32Array);
+    }
 }

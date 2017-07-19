@@ -5,11 +5,12 @@ module.exports = function(grunt) {
                 src: ["src/**/*.ts", "!node_modules/**"],
                 options: {
                   declaration: true,
-                  module: "amd"
+                  module: "amd",
+                  target: "es6"
                 },
                 out: "dist/sims4.js",
             }
-            
+
         }
     });
     grunt.loadNpmTasks("grunt-ts");

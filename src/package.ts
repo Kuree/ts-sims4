@@ -1,8 +1,8 @@
 import * as IO from './io'
-import * as Interface from './interface'
 import * as BigNum from 'bignumber.js'
+import * as pako from 'pako'
 
-export default class Package {
+export class Package {
   private _file: File | Uint8Array;
   private _fileSize: number;
 
@@ -16,28 +16,87 @@ export default class Package {
   IndexPosition: number;
   Unknown4: Uint8Array;
 
+  ResourceEntryList: Array<ITGIBlock>;
+
   private readonly HEADER_SIZE = 96;
   private readonly FOURCC = "DBPF";
+  private readonly ZLIB = 0x5A42;
 
   constructor(file: File | Uint8Array) {
-    var header_blob = this.slice(file, 0, this.HEADER_SIZE);
+    this._file = file
+
+    var header_blob = this.slice(0, this.HEADER_SIZE);
     var entryCount = this.readHeader(header_blob);
 
     // read TGI blocks
+    this.ResourceEntryList = new Array<TGIResourceBlock>(entryCount);
 
-  }
+    var entryData = this.slice(this.IndexPosition);
+    var r = new IO.BinaryReader(entryData);
+    var indexType = r.readInt32();
 
-  private slice(buffer: Uint8Array | Blob, pos: number, size: number) {
-    if (buffer instanceof Uint8Array) {
-      return buffer.subarray(pos, pos + size);
-    } else {
-      return buffer.slice(pos, pos + size);
+    var hdr = new Int32Array(this.hdrsize(indexType));
+    var entry = new Int32Array(9 - hdr.length); // Since index type is counted in hdrsize, use 9 instead
+
+    hdr[0] = indexType;
+
+    for (var i = 1; i < hdr.length; i++) {
+      hdr[i] = r.readInt32();
+    }
+
+    for (var i = 0; i < entryCount; i++) {
+      for (var j = 0; j < entry.length; j++) {
+        entry[j] = r.readInt32();
+      }
+      this.ResourceEntryList[i] = new TGIResourceBlock(hdr, entry);
     }
   }
 
+  private hdrsize(indextype: number) {
+    var hc = 1;
+    for (var i = 0; i < 4; i++) if ((indextype & (1 << i)) != 0) hc++;
+    return hc;
+  }
 
-  readHeader(data: Blob | Uint8Array): number {
-    var data_size = (data instanceof Blob) ? data.size : data.length;
+  private slice(pos: number, size?: number) {
+    if (this._file instanceof Uint8Array) {
+      return size ? this._file.subarray(pos, pos + size) : this._file.subarray(pos);
+    } else {
+      return size ? this._file.slice(pos, pos + size) : this._file.slice(pos);
+    }
+  }
+
+  getResourceEntry(tgi: ITGIBlock) : TGIResourceBlock {
+    var result = this.ResourceEntryList.find((entry) => {
+      return entry.ResourceType == tgi.ResourceType && entry.ResourceType == tgi.ResourceType && entry.ResourceInstance.eq(tgi.ResourceInstance);
+    });
+    return <TGIResourceBlock>result;
+  }
+
+  getResourceStream(tgi: ITGIBlock) {
+    var block = this.getResourceEntry(tgi);
+    if (block) {
+      var rawData = this.slice(block.ChunkOffset, block.ChunkOffset + block.FileSize);
+      if (block.Compressed == this.ZLIB) {
+        if (rawData[0] != 0x78 && rawData[1] != 0x9C){
+          throw new TypeError("Invalid Zlib data");
+        }
+        var dataArray = IO.convertToUint8Array(rawData);
+        var result = pako.inflate(dataArray);
+        if (result.length != block.Memsize) {
+          throw new TypeError("Invalid Zlib data");
+        }
+        return result;
+      } else {
+        return rawData;
+      }
+    } else {
+      return undefined; // not found
+    }
+  }
+
+  private readHeader(data: Blob | Uint8Array): number {
+    var data_size = (data instanceof Uint8Array) ? data.length: data.size;
     if (data_size != this.HEADER_SIZE) {
       throw new TypeError("Wrong header size. Get " + data_size + " expected " + this.HEADER_SIZE)
     }
@@ -61,13 +120,58 @@ export default class Package {
   }
 }
 
-export class TGIResourceBlock implements Interface.ITGIBlock {
+export interface ITGIBlock{
+  ResourceType: number;
+  ResourceGroup: number;
+  ResourceInstance: BigNum.BigNumber;
+}
+
+export class TGIResourceBlock implements ITGIBlock {
   ResourceType: number;
   ResourceGroup: number;
   ResourceInstance: BigNum.BigNumber;
 
   FileSize: number;
   Memsize: number;
-  Compressed: boolean;
-  
+  Compressed: number;
+  ChunkOffset: number;
+  Unknown1: number;
+  Committed: number;
+
+  constructor(header: Int32Array, entry: Int32Array) {
+    var dataInt = new Uint32Array(header.length + entry.length - 1);
+    var type = header[0];
+    var countEntry = 0;
+    for (var i = 0; i < 8; i++) {
+      dataInt[i] = ((type >> i) | 1) != (type >> i) ? dataInt[i] = entry[countEntry++] : dataInt[i] = header[i - countEntry + 1];
+    }
+
+    // read the values
+    this.ResourceType = dataInt[0];
+    this.ResourceGroup = dataInt[1];
+    var instanceHi = dataInt[2];
+    var instanceLo = dataInt[3];
+    this.ResourceInstance = IO.BinaryReader.combineUint64(instanceHi, instanceLo);
+
+    this.ChunkOffset = dataInt[4];
+    var fileSize = dataInt[5];
+    this.Unknown1 = (fileSize >> 31) & 1;
+    this.FileSize = (fileSize << 1) >> 1;
+    this.Memsize = dataInt[6];
+    var meta = dataInt[7];
+    this.Compressed = meta & 0xFFFF; 
+    this.Committed = (meta >> 16) & 0xFFFF;
+  }
+}
+
+export class TGIBlock implements ITGIBlock{
+  ResourceType: number;
+  ResourceGroup: number;
+  ResourceInstance: BigNum.BigNumber;
+
+  constructor(type: number, group: number, instance: BigNum.BigNumber) {
+    this.ResourceType = type;
+    this.ResourceGroup = group;
+    this.ResourceInstance = instance;
+  }
 }

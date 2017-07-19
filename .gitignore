@@ -4,6 +4,7 @@
 
 # Build cache
 .tscache
+lib
 
 # Logs
 logs

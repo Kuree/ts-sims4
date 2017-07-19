@@ -1,54 +1,58 @@
+define("interface", ["require", "exports"], function (require, exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+});
 define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, exports, BigNum, utf8) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
-    var BinaryReader = (function () {
-        function BinaryReader(data, littleEndian) {
-            if (littleEndian === void 0) { littleEndian = true; }
+    class BinaryReader {
+        constructor(data, littleEndian = true) {
             this._buffer = data;
             this._pos = 0;
             this._littleEndian = littleEndian;
         }
-        BinaryReader.prototype.readInt8 = function () {
+        readInt8() {
             return this._decodeInt(8, true);
-        };
-        BinaryReader.prototype.readUInt8 = function () {
+        }
+        readUInt8() {
             return this._decodeInt(8, false);
-        };
-        BinaryReader.prototype.readInt16 = function () {
+        }
+        readInt16() {
             return this._decodeInt(16, true);
-        };
-        BinaryReader.prototype.readUInt16 = function () {
+        }
+        readUInt16() {
             return this._decodeInt(16, false);
-        };
-        BinaryReader.prototype.readInt32 = function () {
+        }
+        readInt32() {
             return this._decodeInt(32, true);
-        };
-        BinaryReader.prototype.readUInt32 = function () {
+        }
+        readUInt32() {
             return this._decodeInt(32, false);
-        };
-        BinaryReader.prototype.readUInt64 = function () {
+        }
+        readUInt64() {
             return this._decodeBigNumber();
-        };
-        BinaryReader.prototype.readFloat = function () { return this._decodeFloat(23, 8); };
-        BinaryReader.prototype.readDouble = function () { return this._decodeFloat(52, 11); };
-        BinaryReader.prototype.readBytes = function (size) {
+        }
+        readFloat() { return this._decodeFloat(23, 8); }
+        readDouble() { return this._decodeFloat(52, 11); }
+        static convertToUint8Array(blob) {
+            var result = blob instanceof Uint8Array ? blob : new Uint8Array(blob.size);
+            if (blob instanceof Uint8Array) {
+                return blob;
+            }
+            for (var i = 0; 9 < result.length; i++) {
+                result[i] = blob[i];
+            }
+            return result;
+        }
+        readBytes(size) {
             this._checkSize(size * 8);
             var bytearray = this._buffer instanceof Uint8Array ? this._buffer.subarray(this._pos, this._pos + size) : this._buffer.slice(this._pos, this._pos + size);
             this._pos += size;
-            var rawArray;
-            if (!(bytearray instanceof Uint8Array)) {
-                rawArray = new Uint8Array(bytearray.size);
-                for (var i = 0; 9 < rawArray.length; i++) {
-                    rawArray[i] = bytearray[i];
-                }
-            }
-            else {
-                rawArray = bytearray;
-            }
+            var rawArray = bytearray instanceof Uint8Array ? bytearray : BinaryReader.convertToUint8Array(bytearray);
             return rawArray;
-        };
-        BinaryReader.prototype.readChar = function () { return this.readString(1); };
-        BinaryReader.prototype.readString = function (length) {
+        }
+        readChar() { return this.readString(1); }
+        readString(length) {
             var bytes = this.readBytes(length);
             var str = "";
             for (var i = 0; i < length; i++) {
@@ -56,18 +60,18 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
             }
             var result = utf8.decode(str);
             return result;
-        };
-        BinaryReader.prototype.seek = function (pos) {
+        }
+        seek(pos) {
             this._pos = pos;
             this._checkSize(0);
-        };
-        BinaryReader.prototype.getPosition = function () {
+        }
+        getPosition() {
             return this._pos;
-        };
-        BinaryReader.prototype.getSize = function () {
+        }
+        getSize() {
             return this._buffer instanceof Uint8Array ? this._buffer.length : this._buffer.size;
-        };
-        BinaryReader.prototype._shuffle = function (num, size) {
+        }
+        _shuffle(num, size) {
             if (size % 8 != 0) {
                 throw new TypeError("Size must be 8's multiples");
             }
@@ -91,8 +95,8 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
             else {
                 throw new TypeError("Unsupported endianess size");
             }
-        };
-        BinaryReader.prototype._decodeFloat = function (precisionBits, exponentBits) {
+        }
+        _decodeFloat(precisionBits, exponentBits) {
             var length = precisionBits + exponentBits + 1;
             var size = length >> 3;
             this._checkSize(length);
@@ -117,23 +121,11 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
             return exponent == (bias << 1) + 1 ? significand ? NaN : signal ? -Infinity : +Infinity
                 : (1 + signal * -2) * (exponent || significand ? !exponent ? Math.pow(2, -bias + 1) * significand
                     : Math.pow(2, exponent - bias) * (1 + significand) : 0);
-        };
-        BinaryReader.prototype._readByte = function (i, size) {
+        }
+        _readByte(i, size) {
             return this._buffer[this._pos + size - i - 1] & 0xff;
-        };
-        BinaryReader.prototype._decodeBigNumber = function () {
-            var small;
-            var big;
-            var bits = 64;
-            if (this._littleEndian) {
-                small = this.readUInt32();
-                big = this.readUInt32();
-            }
-            else {
-                big = this.readUInt32();
-                small = this.readUInt32();
-            }
-            var max = new BigNum(2).pow(bits);
+        }
+        static combineUint64(hi, lo) {
             var toString = function (number) {
                 var pad = function (n, width, z) {
                     z = z || '0';
@@ -145,11 +137,26 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
                 }
                 return pad(number.toString(16), 16, '0');
             };
-            var small_str = toString(small);
-            var big_str = toString(big);
-            return new BigNum(big_str + small_str, 16);
-        };
-        BinaryReader.prototype._decodeInt = function (bits, signed) {
+            const lo_str = toString(lo);
+            const high_str = toString(hi);
+            return new BigNum(high_str + lo_str, 16);
+        }
+        _decodeBigNumber() {
+            var small;
+            var big;
+            const bits = 64;
+            if (this._littleEndian) {
+                small = this.readUInt32();
+                big = this.readUInt32();
+            }
+            else {
+                big = this.readUInt32();
+                small = this.readUInt32();
+            }
+            let max = new BigNum(2).pow(bits);
+            return BinaryReader.combineUint64(big, small);
+        }
+        _decodeInt(bits, signed) {
             var x = this._readBits(0, bits, bits / 8), max = Math.pow(2, bits);
             if (!this._littleEndian) {
                 x = this._shuffle(x, bits);
@@ -157,13 +164,13 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
             var result = signed && x >= max / 2 ? x - max : x;
             this._pos += bits / 8;
             return result;
-        };
-        BinaryReader.prototype._shl = function (a, b) {
+        }
+        _shl(a, b) {
             for (++b; --b; a = ((a %= 0x7fffffff + 1) & 0x40000000) == 0x40000000 ? a * 2 : (a - 0x40000000) * 2 + 0x7fffffff + 1)
                 ;
             return a;
-        };
-        BinaryReader.prototype._readBits = function (start, length, size) {
+        }
+        _readBits(start, length, size) {
             var offsetLeft = (start + length) % 8;
             var offsetRight = start % 8;
             var curByte = size - (start >> 3) - 1;
@@ -177,25 +184,123 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
                 sum += this._shl(this._readByte(lastByte++, size), (diff-- << 3) - offsetRight);
             }
             return sum;
-        };
-        BinaryReader.prototype._checkSize = function (neededBits) {
+        }
+        _checkSize(neededBits) {
             if (!(this._pos + Math.ceil(neededBits / 8) <= this.getSize())) {
                 throw new Error("Index out of bound. Needs " + neededBits + " left: " + (this.getSize() - this._pos + Math.ceil(neededBits / 8)) + " pos: " + this._pos + " buf_length: " + this.getSize());
             }
-        };
-        return BinaryReader;
-    }());
-    exports.default = BinaryReader;
-});
-var Package = (function () {
-    function Package(file) {
-        this.HEADER_SIZE = 96;
-    }
-    Package.prototype.readHeader = function (blob) {
-        if (blob.size != this.HEADER_SIZE) {
-            throw new TypeError("Wrong header size. Get " + blob.size + " expected " + this.HEADER_SIZE);
         }
-    };
-    return Package;
-}());
+    }
+    exports.BinaryReader = BinaryReader;
+});
+define("package", ["require", "exports", "io", "pako"], function (require, exports, IO, pako) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    class Package {
+        constructor(file) {
+            this.HEADER_SIZE = 96;
+            this.FOURCC = "DBPF";
+            this.ZLIB = 0x5a42;
+            this._file = file;
+            var header_blob = this.slice(0, this.HEADER_SIZE);
+            var entryCount = this.readHeader(header_blob);
+            this.ResourceEntryList = new Array(entryCount);
+            var entryData = this.slice(this.IndexPosition);
+            var r = new IO.BinaryReader(entryData);
+            var indexType = r.readInt32();
+            var hdr = new Int32Array(this.hdrsize(indexType));
+            var entry = new Int32Array(9 - hdr.length);
+            hdr[0] = indexType;
+            for (var i = 1; i < hdr.length; i++) {
+                hdr[i] = r.readInt32();
+            }
+            for (var i = 0; i < entryCount; i++) {
+                for (var j = 0; j < entry.length; j++) {
+                    entry[j] = r.readInt32();
+                }
+                this.ResourceEntryList[i] = new TGIResourceBlock(hdr, entry);
+            }
+        }
+        hdrsize(indextype) {
+            var hc = 1;
+            for (var i = 0; i < 4; i++)
+                if ((indextype & (1 << i)) != 0)
+                    hc++;
+            return hc;
+        }
+        slice(pos, size) {
+            if (this._file instanceof Uint8Array) {
+                return size ? this._file.subarray(pos, pos + size) : this._file.subarray(pos);
+            }
+            else {
+                return size ? this._file.slice(pos, pos + size) : this._file.slice(pos);
+            }
+        }
+        getResourceStream(tgi) {
+            var result = this.ResourceEntryList.find((entry) => {
+                return entry.ResourceType == tgi.ResourceType && entry.ResourceType == tgi.ResourceType && entry.ResourceInstance.eq(tgi.ResourceInstance);
+            });
+            if (result) {
+                var block = result;
+                var rawData = this.slice(block.ChunkOffset, block.ChunkOffset + block.FileSize);
+                if (block.Compressed == this.ZLIB) {
+                    return pako.inflate(IO.BinaryReader.convertToUint8Array(rawData));
+                }
+                else {
+                    return rawData;
+                }
+            }
+            else {
+                return undefined;
+            }
+        }
+        readHeader(data) {
+            var data_size = (data instanceof Uint8Array) ? data.length : data.size;
+            if (data_size != this.HEADER_SIZE) {
+                throw new TypeError("Wrong header size. Get " + data_size + " expected " + this.HEADER_SIZE);
+            }
+            var r = new IO.BinaryReader(data);
+            var fourcc = r.readString(4);
+            if (fourcc !== this.FOURCC) {
+                throw new TypeError("Incorrect package format");
+            }
+            this.Major = r.readInt32();
+            this.Minor = r.readInt32();
+            this.Unknown1 = r.readBytes(24);
+            var entryCount = r.readInt32();
+            this.Unknown2 = r.readUInt32();
+            this.IndexSize = r.readInt32();
+            this.Unknown3 = r.readBytes(12);
+            this.IndexVersion = r.readInt32();
+            this.IndexPosition = r.readInt32();
+            this.Unknown4 = r.readBytes(28);
+            return entryCount;
+        }
+    }
+    exports.Package = Package;
+    class TGIResourceBlock {
+        constructor(header, entry) {
+            var dataInt = new Uint32Array(header.length + entry.length - 1);
+            var type = header[0];
+            var countEntry = 0;
+            for (var i = 0; i < 8; i++) {
+                dataInt[i] = ((type >> i) | 1) != (type >> i) ? dataInt[i] = entry[countEntry++] : dataInt[i] = header[i - countEntry + 1];
+            }
+            this.ResourceType = dataInt[0];
+            this.ResourceGroup = dataInt[1];
+            var instanceHi = dataInt[2];
+            var instanceLo = dataInt[3];
+            this.ResourceInstance = IO.BinaryReader.combineUint64(instanceHi, instanceLo);
+            this.ChunkOffset = dataInt[4];
+            var fileSize = dataInt[5];
+            this.Unknown1 = (fileSize >> 31) & 1;
+            this.FileSize = (fileSize << 1) >> 1;
+            this.Memsize = dataInt[6];
+            var meta = dataInt[7];
+            this.Compressed = (meta >> 16) & 0xFFFF;
+            this.Committed = meta & 0xFFFF;
+        }
+    }
+    exports.TGIResourceBlock = TGIResourceBlock;
+});
 //# sourceMappingURL=sims4.js.map

@@ -6,10 +6,12 @@
   "types": "./dist/sims4.d.ts",
   "dependencies": {
     "bignumber.js": "^4.0.2",
+    "pako": "^1.0.5",
     "ts-node": "^3.2.0",
     "utf8": "^2.1.2"
   },
   "devDependencies": {
+    "@types/pako": "^1.0.0",
     "@types/bignumber.js": "^4.0.2",
     "@types/chai": "^4.0.1",
     "@types/mocha": "^2.2.41",
@@ -22,8 +24,8 @@
   },
   "author": "Keyi Zhang",
   "license": "MIT",
-  "repository" :
-  { "type" : "git",
-    "url" : "https://github.com/Kuree/ts-sims4.git"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kuree/ts-sims4.git"
   }
 }
