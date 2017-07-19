@@ -1,7 +1,7 @@
 import * as BigNum from 'bignumber.js'
 import * as utf8 from 'utf8'
 
-export default class BinaryReader {
+export class BinaryReader {
   private _pos: number;
   private _buffer: Uint8Array | Blob;
   private _littleEndian: boolean;
