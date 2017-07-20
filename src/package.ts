@@ -174,6 +174,10 @@ export class TGIBlock implements ITGIBlock{
     this.ResourceGroup = group;
     this.ResourceInstance = instance;
   }
+
+  eq(tgi: ITGIBlock) {
+    return this.ResourceType == tgi.ResourceType && this.ResourceGroup == tgi.ResourceGroup && this.ResourceInstance.eq(tgi.ResourceInstance);
+  }
 }
 
 export class ResourceWrapper{

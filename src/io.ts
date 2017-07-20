@@ -50,7 +50,6 @@ export class BinaryReader {
     for (var i = 0; i < length; i++) {
       str += String.fromCharCode(bytes[i]);
     }
-
     var result = utf8.decode(str);
     return result;
   }
@@ -131,7 +130,7 @@ export class BinaryReader {
         number = 0xFFFFFFFF + number + 1;
       }
 
-      return padString(number.toString(16), 16, '0');
+      return padString(number.toString(16), 8, '0');
     }
 
     const lo_str = toString(lo);

@@ -9,6 +9,9 @@ export class CASPWrapper extends Package.ResourceWrapper {
   presetCount: number;
   name: string;
 
+  sortPriority: number;
+  propertyID: number;
+
   diffuseKey: number;
   shadowKey: number;
   normalMapKey: number;
@@ -29,9 +32,9 @@ export class CASPWrapper extends Package.ResourceWrapper {
     this.name = br.readString(charCount);
 
     // They're not needed for now
-    br.readFloat();   // sortPriority
+    this.sortPriority = br.readFloat();   // sortPriority
     br.readUInt16();  // secondarySortIndex
-    br.readUInt32();  // propertyID
+    this.propertyID = br.readUInt32();  // propertyID
     br.readUInt32();  // auralMaterialHash
     br.readUInt8();   //parmflags
 
@@ -59,6 +62,7 @@ export class CASPWrapper extends Package.ResourceWrapper {
     br.readUInt32();  // bodyType
     br.readUInt32();  // bodySubType
     br.readUInt32(); // age gender
+    
     if (this.version >= 0x20) {
       br.readUInt32();
     }
