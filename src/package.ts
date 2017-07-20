@@ -175,3 +175,20 @@ export class TGIBlock implements ITGIBlock{
     this.ResourceInstance = instance;
   }
 }
+
+export class ResourceWrapper{
+  private _rawData: Uint8Array | Blob;
+  static ResourceType = ['*'];
+  
+  constructor(data: Uint8Array | Blob) {
+    this.parse(data);
+  }
+
+  protected parse(data: Uint8Array| Blob) {
+    this._rawData = data;
+  }
+
+  unparse() {
+    return this._rawData;
+  }
+}

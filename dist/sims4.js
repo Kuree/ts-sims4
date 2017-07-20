@@ -1,7 +1,3 @@
-define("interface", ["require", "exports"], function (require, exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-});
 define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, exports, BigNum, utf8) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -9,46 +5,27 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
         constructor(data, littleEndian = true) {
             this._buffer = data;
             this._pos = 0;
-            this._littleEndian = littleEndian;
+            this.littleEndian = littleEndian;
         }
-        readInt8() {
-            return this._decodeInt(8, true);
-        }
-        readUInt8() {
-            return this._decodeInt(8, false);
-        }
-        readInt16() {
-            return this._decodeInt(16, true);
-        }
-        readUInt16() {
-            return this._decodeInt(16, false);
-        }
-        readInt32() {
-            return this._decodeInt(32, true);
-        }
-        readUInt32() {
-            return this._decodeInt(32, false);
-        }
+        readInt8() { return this._decodeInt(8, true); }
+        readUInt8() { return this._decodeInt(8, false); }
+        readInt16() { return this._decodeInt(16, true); }
+        readUInt16() { return this._decodeInt(16, false); }
+        readInt32() { return this._decodeInt(32, true); }
+        readUInt32() { return this._decodeInt(32, false); }
         readUInt64() {
             return this._decodeBigNumber();
         }
         readFloat() { return this._decodeFloat(23, 8); }
         readDouble() { return this._decodeFloat(52, 11); }
-        static convertToUint8Array(blob) {
-            var result = blob instanceof Uint8Array ? blob : new Uint8Array(blob.size);
-            if (blob instanceof Uint8Array) {
-                return blob;
-            }
-            for (var i = 0; 9 < result.length; i++) {
-                result[i] = blob[i];
-            }
-            return result;
-        }
         readBytes(size) {
+            if (size === 0) {
+                return new Uint8Array(0);
+            }
             this._checkSize(size * 8);
             var bytearray = this._buffer instanceof Uint8Array ? this._buffer.subarray(this._pos, this._pos + size) : this._buffer.slice(this._pos, this._pos + size);
             this._pos += size;
-            var rawArray = bytearray instanceof Uint8Array ? bytearray : BinaryReader.convertToUint8Array(bytearray);
+            var rawArray = bytearray instanceof Uint8Array ? bytearray : convertToUint8Array(bytearray);
             return rawArray;
         }
         readChar() { return this.readString(1); }
@@ -65,10 +42,10 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
             this._pos = pos;
             this._checkSize(0);
         }
-        getPosition() {
+        position() {
             return this._pos;
         }
-        getSize() {
+        size() {
             return this._buffer instanceof Uint8Array ? this._buffer.length : this._buffer.size;
         }
         _shuffle(num, size) {
@@ -127,15 +104,10 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
         }
         static combineUint64(hi, lo) {
             var toString = function (number) {
-                var pad = function (n, width, z) {
-                    z = z || '0';
-                    n = n + '';
-                    return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
-                };
                 if (number < 0) {
                     number = 0xFFFFFFFF + number + 1;
                 }
-                return pad(number.toString(16), 16, '0');
+                return padString(number.toString(16), 16, '0');
             };
             const lo_str = toString(lo);
             const high_str = toString(hi);
@@ -145,7 +117,7 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
             var small;
             var big;
             const bits = 64;
-            if (this._littleEndian) {
+            if (this.littleEndian) {
                 small = this.readUInt32();
                 big = this.readUInt32();
             }
@@ -158,7 +130,7 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
         }
         _decodeInt(bits, signed) {
             var x = this._readBits(0, bits, bits / 8), max = Math.pow(2, bits);
-            if (!this._littleEndian) {
+            if (!this.littleEndian) {
                 x = this._shuffle(x, bits);
             }
             var result = signed && x >= max / 2 ? x - max : x;
@@ -186,12 +158,131 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
             return sum;
         }
         _checkSize(neededBits) {
-            if (!(this._pos + Math.ceil(neededBits / 8) <= this.getSize())) {
-                throw new Error("Index out of bound. Needs " + neededBits + " left: " + (this.getSize() - this._pos + Math.ceil(neededBits / 8)) + " pos: " + this._pos + " buf_length: " + this.getSize());
+            if (!(this._pos + Math.ceil(neededBits / 8) <= this.size())) {
+                throw new Error("Index out of bound. Needs " + neededBits + " left: " + (this.size() - this._pos + Math.ceil(neededBits / 8)) + " pos: " + this._pos + " buf_length: " + this.size());
             }
         }
     }
     exports.BinaryReader = BinaryReader;
+    function convertToUint8Array(blob) {
+        var result = blob instanceof Uint8Array ? blob : new Uint8Array(blob.size);
+        if (blob instanceof Uint8Array) {
+            return blob;
+        }
+        for (var i = 0; i < result.length; i++) {
+            result[i] = blob[i];
+        }
+        return result;
+    }
+    exports.convertToUint8Array = convertToUint8Array;
+    function padString(n, width, z) {
+        z = z || '0';
+        n = n + '';
+        return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
+    }
+    exports.padString = padString;
+    class BinaryWriter {
+        constructor(size = 65536, littleEndian = true) {
+            this._buffer = new Uint8Array(size);
+            this._pos = 0;
+            this._length = 0;
+            this.littleEndian = littleEndian;
+        }
+        length() {
+            return this._length;
+        }
+        seek(pos) {
+            if (pos >= this._length) {
+                throw new RangeError("Buffer outside of range");
+            }
+            this._pos = pos;
+        }
+        position() {
+            return this._pos;
+        }
+        getStream() {
+            return this._buffer.slice(0, this._length);
+        }
+        writeInt8(num) { this._encodeInt(num, 8); }
+        writeUInt8(num) { this._encodeInt(num, 8); }
+        writeInt16(num) { this._encodeInt(num, 16); }
+        writeUInt16(num) { this._encodeInt(num, 16); }
+        writeInt32(num) { this._encodeInt(num, 32); }
+        writeUInt32(num) { this._encodeInt(num, 32); }
+        writeUInt64(num) {
+            var numString = num.toString(16);
+            numString = padString(numString, 16, '0');
+            var hiStr = numString.substring(0, 8);
+            var loStr = numString.substring(8, 16);
+            var hi = parseInt(hiStr, 16);
+            var lo = parseInt(loStr, 16);
+            if (this.littleEndian) {
+                this._encodeInt(lo, 32);
+                this._encodeInt(hi, 32);
+            }
+            else {
+                this._encodeInt(hi, 32);
+                this._encodeInt(lo, 32);
+            }
+        }
+        writeBytes(bytes) {
+            this._checkSize(bytes.length);
+            for (var i = 0; i < bytes.length; i++) {
+                this._buffer[this._pos + i] = bytes[i];
+            }
+            this._pos += bytes.length;
+            this._length = Math.max(this._length, this._pos);
+        }
+        writeByte(byte) {
+            var data = byte & 0xFF;
+            var array = new Uint8Array(1);
+            array[0] = data;
+            this.writeBytes(array);
+        }
+        writeString(str) {
+            var byteString = utf8.encode(str);
+            var bytes = new Uint8Array(byteString.length);
+            for (var i = 0; i < bytes.length; i++) {
+                bytes[i] = byteString.charCodeAt(i);
+            }
+            this.writeBytes(bytes);
+        }
+        _encodeInt(num, size) {
+            if (size % 8 !== 0) {
+                throw new TypeError("Invalid number size");
+            }
+            var numBytes = Math.floor(size / 8);
+            var array = new Uint8Array(numBytes);
+            for (var i = 0; i < numBytes; i++) {
+                var shiftAmount = this.littleEndian ? 8 * i : 8 * (3 - i);
+                var byte = (num >> shiftAmount) & 0xFF;
+                array[i] = byte;
+            }
+            this.writeBytes(array);
+        }
+        _checkSize(size) {
+            if (size + this._pos >= this._buffer.length) {
+                this._expand();
+            }
+        }
+        _expand() {
+            var empty = new Uint8Array(this._buffer.length);
+            this._buffer = this._arrayCopy(this._buffer, empty);
+        }
+        _arrayCopy(src1, src2, dest) {
+            if (!dest) {
+                dest = new Uint8Array(src1.length + src2.length);
+            }
+            for (var i = 0; i < src1.length; i++) {
+                dest[i] = src1[i];
+            }
+            for (var i = 0; i < src2.length; i++) {
+                dest[i + src1.length] = src2[i];
+            }
+            return dest;
+        }
+    }
+    exports.BinaryWriter = BinaryWriter;
 });
 define("package", ["require", "exports", "io", "pako"], function (require, exports, IO, pako) {
     "use strict";
@@ -200,7 +291,7 @@ define("package", ["require", "exports", "io", "pako"], function (require, expor
         constructor(file) {
             this.HEADER_SIZE = 96;
             this.FOURCC = "DBPF";
-            this.ZLIB = 0x5a42;
+            this.ZLIB = 0x5A42;
             this._file = file;
             var header_blob = this.slice(0, this.HEADER_SIZE);
             var entryCount = this.readHeader(header_blob);
@@ -236,15 +327,26 @@ define("package", ["require", "exports", "io", "pako"], function (require, expor
                 return size ? this._file.slice(pos, pos + size) : this._file.slice(pos);
             }
         }
-        getResourceStream(tgi) {
+        getResourceEntry(tgi) {
             var result = this.ResourceEntryList.find((entry) => {
                 return entry.ResourceType == tgi.ResourceType && entry.ResourceType == tgi.ResourceType && entry.ResourceInstance.eq(tgi.ResourceInstance);
             });
-            if (result) {
-                var block = result;
+            return result;
+        }
+        getResourceStream(tgi) {
+            var block = this.getResourceEntry(tgi);
+            if (block) {
                 var rawData = this.slice(block.ChunkOffset, block.ChunkOffset + block.FileSize);
                 if (block.Compressed == this.ZLIB) {
-                    return pako.inflate(IO.BinaryReader.convertToUint8Array(rawData));
+                    if (rawData[0] != 0x78 && rawData[1] != 0x9C) {
+                        throw new TypeError("Invalid Zlib data");
+                    }
+                    var dataArray = IO.convertToUint8Array(rawData);
+                    var result = pako.inflate(dataArray);
+                    if (result.length != block.Memsize) {
+                        throw new TypeError("Invalid Zlib data");
+                    }
+                    return result;
                 }
                 else {
                     return rawData;
@@ -297,10 +399,174 @@ define("package", ["require", "exports", "io", "pako"], function (require, expor
             this.FileSize = (fileSize << 1) >> 1;
             this.Memsize = dataInt[6];
             var meta = dataInt[7];
-            this.Compressed = (meta >> 16) & 0xFFFF;
-            this.Committed = meta & 0xFFFF;
+            this.Compressed = meta & 0xFFFF;
+            this.Committed = (meta >> 16) & 0xFFFF;
         }
     }
     exports.TGIResourceBlock = TGIResourceBlock;
+    class TGIBlock {
+        constructor(type, group, instance) {
+            this.ResourceType = type;
+            this.ResourceGroup = group;
+            this.ResourceInstance = instance;
+        }
+    }
+    exports.TGIBlock = TGIBlock;
+    class ResourceWrapper {
+        constructor(data) {
+            this.parse(data);
+        }
+        parse(data) {
+            this._rawData = data;
+        }
+        unparse() {
+            return this._rawData;
+        }
+    }
+    ResourceWrapper.ResourceType = ['*'];
+    exports.ResourceWrapper = ResourceWrapper;
+});
+define("cas", ["require", "exports", "package", "io"], function (require, exports, Package, IO) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    class CASPWrapper extends Package.ResourceWrapper {
+        parse(data) {
+            var br = new IO.BinaryReader(data);
+            this.version = br.readUInt32();
+            var dataSize = br.readUInt32();
+            var tgiPos = br.position() + dataSize;
+            this.presetCount = br.readUInt32();
+            var charCount = br.readUInt8();
+            this.name = br.readString(charCount);
+            br.readFloat();
+            br.readUInt16();
+            br.readUInt32();
+            br.readUInt32();
+            br.readUInt8();
+            if (this.version >= 39) {
+                br.readUInt8();
+            }
+            br.readUInt64();
+            if (this.version >= 41) {
+                br.readUInt64();
+            }
+            if (this.version >= 36) {
+                br.readUInt64();
+            }
+            else {
+                br.readUInt32();
+            }
+            var tagCount = br.readUInt32();
+            br.readBytes(tagCount * 4);
+            br.readUInt32();
+            br.readUInt32();
+            br.readUInt32();
+            br.readUInt8();
+            br.readUInt32();
+            br.readUInt32();
+            br.readUInt32();
+            if (this.version >= 0x20) {
+                br.readUInt32();
+            }
+            if (this.version >= 34) {
+                br.readInt16();
+                br.readUInt8();
+                br.readBytes(9);
+            }
+            else {
+                var unused2 = br.readUInt8();
+                if (unused2 > 0) {
+                    br.readUInt8();
+                }
+            }
+            var colorCount = br.readUInt8();
+            this.colorList = new Uint32Array(colorCount);
+            for (var i = 0; i < colorCount; i++) {
+                this.colorList[i] = br.readUInt32();
+            }
+            br.readUInt8();
+            br.readUInt8();
+            if (this.version >= 0x1C) {
+                br.readUInt64();
+            }
+            if (this.version >= 0x1E) {
+                var usedMaterialCount = br.readUInt8();
+                if (usedMaterialCount > 0) {
+                    br.readUInt32();
+                    br.readUInt32();
+                    br.readUInt32();
+                }
+            }
+            if (this.version >= 0x1F) {
+                br.readUInt32();
+            }
+            if (this.version >= 38) {
+                br.readUInt64();
+            }
+            if (this.version >= 39) {
+                br.readUInt64();
+            }
+            br.readUInt8();
+            br.readUInt8();
+            br.readUInt32();
+            var numLOD = br.readUInt8();
+            this.lodList = new Array(numLOD);
+            for (var i = 0; i < numLOD; i++) {
+                this.lodList[i] = new LOD(br);
+            }
+            var numSlot = br.readUInt8();
+            br.readBytes(numSlot);
+            this.diffuseKey = br.readUInt8();
+            this.shadowKey = br.readUInt8();
+            br.readUInt8();
+            br.readUInt8();
+            var numOverride = br.readUInt8();
+            br.readBytes(5 * numOverride);
+            this.normalMapKey = br.readUInt8();
+            this.specularMapKey = br.readUInt8();
+            if (this.version >= 0x1B) {
+                br.readUInt32();
+            }
+            if (this.version >= 0x1E) {
+                br.readUInt8();
+            }
+            if (this.version >= 42) {
+                br.readUInt8();
+            }
+            if (br.position() != tgiPos) {
+                throw new TypeError("Invalid CASP format. \ Version: " + this.version + " \
+      TGI position at " + tgiPos + " now at " + br.position());
+            }
+            var numTGI = br.readUInt8();
+            this.tgiList = new Array(numTGI);
+            for (var i = 0; i < numTGI; i++) {
+                var instance = br.readUInt64();
+                var group = br.readUInt32();
+                var type = br.readUInt32();
+                this.tgiList[i] = new Package.TGIBlock(type, group, instance);
+            }
+        }
+    }
+    CASPWrapper.ResourceType = ["0x034AEECB"];
+    exports.CASPWrapper = CASPWrapper;
+    class LOD {
+        constructor(br) {
+            this.level = br.readUInt8();
+            this.unused = br.readUInt32();
+            var numAssets = br.readUInt8();
+            this.assets = new Uint32Array(3 * numAssets);
+            for (var i = 0; i < numAssets; i++) {
+                this.assets[i * 3] = br.readUInt32();
+                this.assets[i * 3 + 1] = br.readUInt32();
+                this.assets[i * 3 + 2] = br.readUInt32();
+            }
+            var numLOD = br.readUInt8();
+            this.lodKey = new Uint8Array(numLOD);
+            for (var i = 0; i < numLOD; i++) {
+                this.lodKey[i] = br.readUInt8();
+            }
+        }
+    }
+    exports.LOD = LOD;
 });
 //# sourceMappingURL=sims4.js.map

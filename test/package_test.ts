@@ -25,8 +25,8 @@ describe("Test Package", () => {
     assert(entry !== undefined);
     var stream = pkg.getResourceStream(entry);
     assert(stream !== undefined);
-    var streamSize = stream instanceof Uint8Array ? stream.length : stream.size;
     var br = new IO.BinaryReader(stream);
+    expect(br.readString(5)).to.equal("Lorem");
   });
 });
 

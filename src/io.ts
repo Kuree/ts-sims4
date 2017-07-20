@@ -1,6 +1,8 @@
 import * as BigNum from 'bignumber.js'
 import * as utf8 from 'utf8'
 
+// a huge improvement from
+// http://blog.vjeux.com/wp-content/uploads/2010/01/binaryReader.js
 export class BinaryReader {
   private _pos: number;
   private _buffer: Uint8Array | Blob;
@@ -30,6 +32,9 @@ export class BinaryReader {
   readDouble(): number { return this._decodeFloat(52, 11); }
 
   readBytes(size: number): Uint8Array {
+    if (size === 0) {
+      return new Uint8Array(0);
+    }
     this._checkSize(size * 8);
     var bytearray = this._buffer instanceof Uint8Array ? this._buffer.subarray(this._pos, this._pos + size) : this._buffer.slice(this._pos, this._pos + size);
     this._pos += size;
@@ -55,11 +60,11 @@ export class BinaryReader {
     this._checkSize(0);
   }
 
-  getPosition(): number {
+  position(): number {
     return this._pos;
   }
 
-  getSize(): number {
+  size(): number {
     return this._buffer instanceof Uint8Array ? this._buffer.length : this._buffer.size;
   }
 
@@ -121,16 +126,12 @@ export class BinaryReader {
 
   static combineUint64(hi: number, lo: number): BigNumber.BigNumber {
     var toString = function(number: number): string {
-      var pad = function(n, width, z) {
-        z = z || '0';
-        n = n + '';
-        return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
-      }
+
       if (number < 0) {
         number = 0xFFFFFFFF + number + 1;
       }
 
-      return pad(number.toString(16), 16, '0');
+      return padString(number.toString(16), 16, '0');
     }
 
     const lo_str = toString(lo);
@@ -193,8 +194,8 @@ export class BinaryReader {
   }
 
   private _checkSize(neededBits: number): void {
-    if (!(this._pos + Math.ceil(neededBits / 8) <= this.getSize())) {
-      throw new Error("Index out of bound. Needs " + neededBits + " left: " + (this.getSize() - this._pos + Math.ceil(neededBits / 8)) + " pos: " + this._pos + " buf_length: " + this.getSize());
+    if (!(this._pos + Math.ceil(neededBits / 8) <= this.size())) {
+      throw new Error("Index out of bound. Needs " + neededBits + " left: " + (this.size() - this._pos + Math.ceil(neededBits / 8)) + " pos: " + this._pos + " buf_length: " + this.size());
     }
   }
 }
@@ -208,6 +209,12 @@ export function convertToUint8Array(blob: Blob | Uint8Array) {
     result[i] = blob[i];
   }
   return result;
+}
+
+export function padString(n, width, z) {
+  z = z || '0';
+  n = n + '';
+  return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
 }
 
 export class BinaryWriter {
@@ -238,6 +245,10 @@ export class BinaryWriter {
     return this._pos;
   }
 
+  getStream() {
+    return this._buffer.slice(0, this._length);
+  }
+
   writeInt8(num: number) { this._encodeInt(num, 8); }
   writeUInt8(num: number) { this._encodeInt(num, 8); }
   writeInt16(num: number) { this._encodeInt(num, 16); }
@@ -245,19 +256,65 @@ export class BinaryWriter {
   writeInt32(num: number) { this._encodeInt(num, 32); }
   writeUInt32(num: number) { this._encodeInt(num, 32); }
 
+  writeUInt64(num: BigNum.BigNumber) {
+    var numString = num.toString(16);
+    // pad to 16 characters
+    numString = padString(numString, 16, '0');
+    var hiStr = numString.substring(0, 8);
+    var loStr = numString.substring(8, 16);
+
+    var hi = parseInt(hiStr, 16);
+    var lo = parseInt(loStr, 16);
+
+    // position will be handled by encodeInt
+    if (this.littleEndian) {
+      this._encodeInt(lo, 32);
+      this._encodeInt(hi, 32);
+    } else {
+      this._encodeInt(hi, 32);
+      this._encodeInt(lo, 32);
+    }
+  }
+
+  writeBytes(bytes: Uint8Array) {
+    this._checkSize(bytes.length);
+    for (var i = 0; i < bytes.length; i++){
+      this._buffer[this._pos + i] = bytes[i];
+    }
+
+    this._pos += bytes.length;
+    this._length = Math.max(this._length, this._pos);
+  }
+
+  writeByte(byte: number) {
+    var data = byte & 0xFF;
+    var array = new Uint8Array(1);
+    array[0] = data;
+    this.writeBytes(array);
+  }
+
+  writeString(str: string) {
+    var byteString = utf8.encode(str);
+    var bytes = new Uint8Array(byteString.length);
+    for (var i = 0; i < bytes.length; i++){
+      bytes[i] = byteString.charCodeAt(i);
+    }
+
+    this.writeBytes(bytes);
+  }
+
   private _encodeInt(num: number, size: number) {
     if (size % 8 !== 0) {
       throw new TypeError("Invalid number size");
     }
     var numBytes = Math.floor(size / 8);
-    this._checkSize(numBytes);
+    var array = new Uint8Array(numBytes);
     for (var i = 0; i < numBytes; i++) {
       var shiftAmount = this.littleEndian ? 8 * i : 8 * (3 - i);
       var byte = (num >> shiftAmount) & 0xFF;
-      this._buffer[this._pos + i] = byte;
+      array[i] = byte;
     }
-    this._pos += numBytes;
-    this._length = Math.max(this._length, this._pos);
+    this.writeBytes(array);
   }
 
   private _checkSize(size: number) {
