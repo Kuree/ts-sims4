@@ -1,7 +1,6 @@
 import { expect, assert } from 'chai';
 import 'mocha'
 import * as IO from '../src/io'
-import * as BigNum from 'bignumber.js'
 
 describe("Test BinaryReader", () => {
   it("readInt8() - readUInt8()", () => {
@@ -73,7 +72,7 @@ describe("Test BinaryReader", () => {
     let array = new Uint8Array(buffer);
     array[2] = 0xFF;
     var br = new IO.BinaryReader(array);
-    assert(br.readUInt64().eq(new BigNum(0xff0000)));
+    assert(br.readUInt64().eq(new IO.Uint64(0, 0xff0000)));
   });
 
   it("readUInt64() - big endian", () => {
@@ -81,7 +80,7 @@ describe("Test BinaryReader", () => {
     let array = new Uint8Array(buffer);
     array[6] = 0xFF;
     var br = new IO.BinaryReader(array, false);
-    assert(br.readUInt64().eq(new BigNum(0xff00)));
+    assert(br.readUInt64().eq(new IO.Uint64(0, 0xff00)));
   });
 
   it("readFloat()", () => {

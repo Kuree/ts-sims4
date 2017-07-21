@@ -1,6 +1,11 @@
-/// <reference types="bignumber.js" />
 declare module "io" {
-    import * as BigNum from 'bignumber.js';
+    export class Uint64 {
+        hi: number;
+        lo: number;
+        constructor(hi: number, lo: number);
+        eq(num: Uint64): boolean;
+        toString(): string;
+    }
     export class BinaryReader {
         private _pos;
         private _buffer;
@@ -12,7 +17,7 @@ declare module "io" {
         readUInt16(): number;
         readInt32(): number;
         readUInt32(): number;
-        readUInt64(): BigNumber.BigNumber;
+        readUInt64(): Uint64;
         readFloat(): number;
         readDouble(): number;
         readBytes(size: number): Uint8Array;
@@ -24,7 +29,6 @@ declare module "io" {
         private _shuffle(num, size);
         private _decodeFloat(precisionBits, exponentBits);
         private _readByte(i, size);
-        static combineUint64(hi: number, lo: number): BigNumber.BigNumber;
         private _decodeBigNumber();
         private _decodeInt(bits, signed);
         private _shl(a, b);
@@ -49,7 +53,7 @@ declare module "io" {
         writeUInt16(num: number): void;
         writeInt32(num: number): void;
         writeUInt32(num: number): void;
-        writeUInt64(num: BigNum.BigNumber): void;
+        writeUInt64(num: Uint64): void;
         writeBytes(bytes: Uint8Array): void;
         writeByte(byte: number): void;
         writeString(str: string): void;
@@ -60,7 +64,7 @@ declare module "io" {
     }
 }
 declare module "package" {
-    import * as BigNum from 'bignumber.js';
+    import * as IO from "io";
     export class Package {
         private _file;
         private _fileSize;
@@ -87,12 +91,12 @@ declare module "package" {
     export interface ITGIBlock {
         ResourceType: number;
         ResourceGroup: number;
-        ResourceInstance: BigNum.BigNumber;
+        ResourceInstance: IO.Uint64;
     }
     export class TGIResourceBlock implements ITGIBlock {
         ResourceType: number;
         ResourceGroup: number;
-        ResourceInstance: BigNum.BigNumber;
+        ResourceInstance: IO.Uint64;
         FileSize: number;
         Memsize: number;
         Compressed: number;
@@ -104,8 +108,8 @@ declare module "package" {
     export class TGIBlock implements ITGIBlock {
         ResourceType: number;
         ResourceGroup: number;
-        ResourceInstance: BigNum.BigNumber;
-        constructor(type: number, group: number, instance: BigNum.BigNumber);
+        ResourceInstance: IO.Uint64;
+        constructor(type: number, group: number, instance: IO.Uint64);
         eq(tgi: ITGIBlock): boolean;
     }
     export class ResourceWrapper {

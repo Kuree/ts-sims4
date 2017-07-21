@@ -1,5 +1,4 @@
 import * as IO from './io'
-import * as BigNum from 'bignumber.js'
 import * as pako from 'pako'
 
 export class Package {
@@ -123,13 +122,13 @@ export class Package {
 export interface ITGIBlock{
   ResourceType: number;
   ResourceGroup: number;
-  ResourceInstance: BigNum.BigNumber;
+  ResourceInstance: IO.Uint64;
 }
 
 export class TGIResourceBlock implements ITGIBlock {
   ResourceType: number;
   ResourceGroup: number;
-  ResourceInstance: BigNum.BigNumber;
+  ResourceInstance: IO.Uint64;
 
   FileSize: number;
   Memsize: number;
@@ -151,7 +150,7 @@ export class TGIResourceBlock implements ITGIBlock {
     this.ResourceGroup = dataInt[1];
     var instanceHi = dataInt[2];
     var instanceLo = dataInt[3];
-    this.ResourceInstance = IO.BinaryReader.combineUint64(instanceHi, instanceLo);
+    this.ResourceInstance = new IO.Uint64(instanceHi, instanceLo);
 
     this.ChunkOffset = dataInt[4];
     var fileSize = dataInt[5];
@@ -167,9 +166,9 @@ export class TGIResourceBlock implements ITGIBlock {
 export class TGIBlock implements ITGIBlock{
   ResourceType: number;
   ResourceGroup: number;
-  ResourceInstance: BigNum.BigNumber;
+  ResourceInstance: IO.Uint64;
 
-  constructor(type: number, group: number, instance: BigNum.BigNumber) {
+  constructor(type: number, group: number, instance: IO.Uint64) {
     this.ResourceType = type;
     this.ResourceGroup = group;
     this.ResourceInstance = instance;

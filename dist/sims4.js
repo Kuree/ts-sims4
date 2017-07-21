@@ -1,6 +1,24 @@
-define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, exports, BigNum, utf8) {
+define("io", ["require", "exports", "utf8"], function (require, exports, utf8) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
+    class Uint64 {
+        constructor(hi, lo) {
+            this.hi = hi;
+            this.lo = lo;
+        }
+        eq(num) {
+            return this.hi === num.hi && this.lo === num.lo;
+        }
+        toString() {
+            if (this.hi === 0) {
+                return this.lo.toString(16);
+            }
+            var loString = padString(this.lo.toString(16), 8, '0');
+            var hiString = this.hi.toString(16);
+            return hiString + loString;
+        }
+    }
+    exports.Uint64 = Uint64;
     class BinaryReader {
         constructor(data, littleEndian = true) {
             this._buffer = data;
@@ -102,17 +120,6 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
         _readByte(i, size) {
             return this._buffer[this._pos + size - i - 1] & 0xff;
         }
-        static combineUint64(hi, lo) {
-            var toString = function (number) {
-                if (number < 0) {
-                    number = 0xFFFFFFFF + number + 1;
-                }
-                return padString(number.toString(16), 8, '0');
-            };
-            const lo_str = toString(lo);
-            const high_str = toString(hi);
-            return new BigNum(high_str + lo_str, 16);
-        }
         _decodeBigNumber() {
             var small;
             var big;
@@ -125,8 +132,7 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
                 big = this.readUInt32();
                 small = this.readUInt32();
             }
-            let max = new BigNum(2).pow(bits);
-            return BinaryReader.combineUint64(big, small);
+            return new Uint64(big, small);
         }
         _decodeInt(bits, signed) {
             var x = this._readBits(0, bits, bits / 8), max = Math.pow(2, bits);
@@ -210,12 +216,8 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
         writeInt32(num) { this._encodeInt(num, 32); }
         writeUInt32(num) { this._encodeInt(num, 32); }
         writeUInt64(num) {
-            var numString = num.toString(16);
-            numString = padString(numString, 16, '0');
-            var hiStr = numString.substring(0, 8);
-            var loStr = numString.substring(8, 16);
-            var hi = parseInt(hiStr, 16);
-            var lo = parseInt(loStr, 16);
+            var hi = num.hi;
+            var lo = num.lo;
             if (this.littleEndian) {
                 this._encodeInt(lo, 32);
                 this._encodeInt(hi, 32);
@@ -392,7 +394,7 @@ define("package", ["require", "exports", "io", "pako"], function (require, expor
             this.ResourceGroup = dataInt[1];
             var instanceHi = dataInt[2];
             var instanceLo = dataInt[3];
-            this.ResourceInstance = IO.BinaryReader.combineUint64(instanceHi, instanceLo);
+            this.ResourceInstance = new IO.Uint64(instanceHi, instanceLo);
             this.ChunkOffset = dataInt[4];
             var fileSize = dataInt[5];
             this.Unknown1 = (fileSize >> 31) & 1;

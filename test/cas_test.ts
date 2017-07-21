@@ -4,7 +4,6 @@ import * as fs from 'fs'
 import * as Package from '../src/package'
 import * as IO from '../src/io'
 import * as CAS from '../src/cas'
-import * as BigNum from 'bignumber.js'
 
 describe("Test CAS", () => {
   var stream = fs.readFileSync("test/files/ymShoes_AnkleWork_Brown.caspart");
@@ -36,8 +35,8 @@ describe("Test CAS", () => {
     var tgi = <Package.TGIBlock>casp.tgiList[1];
     var type = 0x015A1849;
     var group = 0x00E8506E;
-    var instance = new BigNum('91F13B832B1BB9BA', 16);
+    var instance = new IO.Uint64(0x91F13B83, 0x2B1BB9BA);
     var expected = new Package.TGIBlock(type, group, instance);
-    assert(tgi.eq(expected), tgi.ResourceInstance.toString(16));
+    assert(tgi.eq(expected), tgi.ResourceInstance.toString());
   });
 });

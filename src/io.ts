@@ -1,5 +1,26 @@
-import * as BigNum from 'bignumber.js'
 import * as utf8 from 'utf8'
+
+export class Uint64{
+  hi: number;
+  lo: number;
+  constructor(hi: number, lo: number) {
+    this.hi = hi;
+    this.lo = lo;
+  }
+
+  eq(num: Uint64) {
+    return this.hi === num.hi && this.lo === num.lo;
+  }
+
+  toString() {
+    if (this.hi === 0) {
+      return this.lo.toString(16);
+    }
+    var loString = padString(this.lo.toString(16), 8, '0');
+    var hiString = this.hi.toString(16);
+    return hiString + loString;
+  }
+}
 
 // a huge improvement from
 // http://blog.vjeux.com/wp-content/uploads/2010/01/binaryReader.js
@@ -24,7 +45,7 @@ export class BinaryReader {
 
   // signed 64 bit is not supported
 
-  readUInt64(): BigNumber.BigNumber {
+  readUInt64(): Uint64 {
     return this._decodeBigNumber();
   }
 
@@ -123,23 +144,7 @@ export class BinaryReader {
     return this._buffer[this._pos + size - i - 1] & 0xff;
   }
 
-  static combineUint64(hi: number, lo: number): BigNumber.BigNumber {
-    var toString = function(number: number): string {
-
-      if (number < 0) {
-        number = 0xFFFFFFFF + number + 1;
-      }
-
-      return padString(number.toString(16), 8, '0');
-    }
-
-    const lo_str = toString(lo);
-    const high_str = toString(hi);
-
-    return new BigNum(high_str + lo_str, 16);
-  }
-
-  private _decodeBigNumber(): BigNumber.BigNumber {
+  private _decodeBigNumber(): Uint64 {
     var small: number; var big: number;
     const bits = 64;
     if (this.littleEndian) {
@@ -149,9 +154,9 @@ export class BinaryReader {
       big = this.readUInt32();
       small = this.readUInt32();
     }
-    let max = new BigNum(2).pow(bits);
+    //let max = new BigNum(2).pow(bits);
 
-    return BinaryReader.combineUint64(big, small);
+    return new Uint64(big, small);
     //var result = signed && x.gte(max.div(2)) ? x.sub(max) : x;
   }
 
@@ -255,15 +260,10 @@ export class BinaryWriter {
   writeInt32(num: number) { this._encodeInt(num, 32); }
   writeUInt32(num: number) { this._encodeInt(num, 32); }
 
-  writeUInt64(num: BigNum.BigNumber) {
-    var numString = num.toString(16);
-    // pad to 16 characters
-    numString = padString(numString, 16, '0');
-    var hiStr = numString.substring(0, 8);
-    var loStr = numString.substring(8, 16);
+  writeUInt64(num: Uint64) {
 
-    var hi = parseInt(hiStr, 16);
-    var lo = parseInt(loStr, 16);
+    var hi = num.hi;
+    var lo = num.lo;
 
     // position will be handled by encodeInt
     if (this.littleEndian) {

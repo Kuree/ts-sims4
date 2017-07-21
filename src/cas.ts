@@ -1,5 +1,4 @@
 import * as Package from './package'
-import * as BigNum from 'bignumber.js'
 import * as IO from './io'
 
 export class CASPWrapper extends Package.ResourceWrapper {
