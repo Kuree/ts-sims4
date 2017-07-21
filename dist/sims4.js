@@ -107,7 +107,7 @@ define("io", ["require", "exports", "bignumber.js", "utf8"], function (require, 
                 if (number < 0) {
                     number = 0xFFFFFFFF + number + 1;
                 }
-                return padString(number.toString(16), 16, '0');
+                return padString(number.toString(16), 8, '0');
             };
             const lo_str = toString(lo);
             const high_str = toString(hi);
@@ -410,6 +410,9 @@ define("package", ["require", "exports", "io", "pako"], function (require, expor
             this.ResourceGroup = group;
             this.ResourceInstance = instance;
         }
+        eq(tgi) {
+            return this.ResourceType == tgi.ResourceType && this.ResourceGroup == tgi.ResourceGroup && this.ResourceInstance.eq(tgi.ResourceInstance);
+        }
     }
     exports.TGIBlock = TGIBlock;
     class ResourceWrapper {
@@ -438,9 +441,9 @@ define("cas", ["require", "exports", "package", "io"], function (require, export
             this.presetCount = br.readUInt32();
             var charCount = br.readUInt8();
             this.name = br.readString(charCount);
-            br.readFloat();
+            this.sortPriority = br.readFloat();
             br.readUInt16();
-            br.readUInt32();
+            this.propertyID = br.readUInt32();
             br.readUInt32();
             br.readUInt8();
             if (this.version >= 39) {
@@ -568,5 +571,163 @@ define("cas", ["require", "exports", "package", "io"], function (require, export
         }
     }
     exports.LOD = LOD;
+});
+define("rcol", ["require", "exports", "io", "package"], function (require, exports, IO, Package) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    class RCOLChunk {
+        constructor(data) {
+            this._data = data;
+            this.parse(data);
+        }
+        parse(data) {
+        }
+    }
+    exports.RCOLChunk = RCOLChunk;
+    class VertexFormat {
+        constructor(data) {
+            var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
+            this.dataType = br.readUInt32();
+            this.subType = br.readUInt32();
+            this.bytesPerElement = br.readUInt8();
+        }
+    }
+    exports.VertexFormat = VertexFormat;
+    var VertexDataType;
+    (function (VertexDataType) {
+        VertexDataType[VertexDataType["Unknown1"] = 0] = "Unknown1";
+        VertexDataType[VertexDataType["Position"] = 1] = "Position";
+        VertexDataType[VertexDataType["Normal"] = 2] = "Normal";
+        VertexDataType[VertexDataType["UV"] = 3] = "UV";
+        VertexDataType[VertexDataType["BoneAssignment"] = 4] = "BoneAssignment";
+        VertexDataType[VertexDataType["Unknown2"] = 4] = "Unknown2";
+        VertexDataType[VertexDataType["TangentNormal"] = 6] = "TangentNormal";
+        VertexDataType[VertexDataType["Color"] = 7] = "Color";
+        VertexDataType[VertexDataType["Unknown3"] = 8] = "Unknown3";
+        VertexDataType[VertexDataType["Unknown4"] = 9] = "Unknown4";
+        VertexDataType[VertexDataType["VertexID"] = 10] = "VertexID";
+    })(VertexDataType = exports.VertexDataType || (exports.VertexDataType = {}));
+    class Vertex {
+        constructor(type, value) {
+            this.type = type;
+            this.value = value;
+        }
+        toString() {
+            return "Type: " + this.type + "Value: " + this.value.toString();
+        }
+    }
+    exports.Vertex = Vertex;
+    class VertexData {
+        constructor(data, vertexFormatList) {
+            var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
+            this.vData = new Array(vertexFormatList.length);
+            for (var i = 0; i < vertexFormatList.length; i++) {
+                var vf = vertexFormatList[i];
+                if (vf.dataType == 1 || vf.dataType == 2 || vf.dataType == 6) {
+                    this.vData[i] = new Vertex(vf.dataType, [br.readFloat(), br.readFloat(), br.readFloat()]);
+                }
+                else if (vf.dataType == 4 || vf.dataType == 5 || vf.dataType == 7 || vf.dataType == 10) {
+                    this.vData[i] = new Vertex(vf.dataType, [br.readUInt32()]);
+                }
+                else if (vf.dataType == 3) {
+                    this.vData[i] = new Vertex(vf.dataType, [br.readFloat(), br.readFloat()]);
+                }
+            }
+        }
+    }
+    exports.VertexData = VertexData;
+    class GEOMRCOLChunk extends RCOLChunk {
+        parse(data) {
+            var br = new IO.BinaryReader(data);
+            var fourcc = br.readString(4);
+            if (fourcc != GEOMRCOLChunk.FOURCC) {
+                throw new TypeError("Invalild GEOM chunk");
+            }
+            this.version = br.readUInt32();
+            var tgiOffset = br.readUInt32();
+            var tgiSize = br.readUInt32();
+            this.embeddedID = br.readUInt32();
+            if (this.embeddedID !== 0) {
+                var mtnfSize = br.readUInt32();
+                br.readBytes(mtnfSize);
+            }
+            this.mergeGroup = br.readUInt32();
+            this.sortOrder = br.readUInt32();
+            var numVerts = br.readInt32();
+            var fCount = br.readUInt32();
+            this.vertexFormatList = new Array(fCount);
+            for (var i = 0; i < fCount; i++) {
+                this.vertexFormatList[i] = new VertexFormat(br);
+            }
+            this.vertexDataList = new Array(numVerts);
+            for (var i = 0; i < numVerts; i++) {
+                this.vertexDataList[i] = new VertexData(br, this.vertexFormatList);
+            }
+            var itemCount = br.readUInt32();
+            if (itemCount != 1) {
+                throw new TypeError("Invalid GEOM. Get itemCount: " + itemCount + " expect 1");
+            }
+            var bytesPerFacePoint = br.readUInt8();
+            if (bytesPerFacePoint != 2) {
+                throw new TypeError("Invalid GEOM. Get itemCount: " + bytesPerFacePoint + " expect 2");
+            }
+            var faceCount = br.readUInt32();
+            this.facePointList = new Uint16Array(faceCount);
+            for (var i = 0; i < faceCount; i++) {
+                this.facePointList[i] = br.readUInt16();
+            }
+        }
+    }
+    GEOMRCOLChunk.FOURCC = "GEOM";
+    exports.GEOMRCOLChunk = GEOMRCOLChunk;
+    class RCOLWrapper extends Package.ResourceWrapper {
+        parse(data) {
+            var br = new IO.BinaryReader(data);
+            this.version = br.readUInt32();
+            var internalChunkCount = br.readUInt32();
+            this.index3 = br.readUInt32();
+            var externalCount = br.readUInt32();
+            var internalCount = br.readUInt32();
+            this.internalTGIList = new Array(internalCount);
+            for (var i = 0; i < internalCount; i++) {
+                var instance = br.readUInt64();
+                var type = br.readUInt32();
+                var group = br.readUInt32();
+                this.internalTGIList[i] = new Package.TGIBlock(type, group, instance);
+            }
+            this.externalTGIList = new Array(externalCount);
+            for (var i = 0; i < externalCount; i++) {
+                var instance = br.readUInt64();
+                var type = br.readUInt32();
+                var group = br.readUInt32();
+                this.externalTGIList[i] = new Package.TGIBlock(type, group, instance);
+            }
+            this.rcolChunkList = new Array(internalCount);
+            for (var i = 0; i < internalCount; i++) {
+                var position = br.readUInt32();
+                var size = br.readUInt32();
+                var chunkData = data.slice(position, position + size);
+                this.rcolChunkList[i] = getRCOLChunk(chunkData);
+            }
+        }
+    }
+    exports.RCOLWrapper = RCOLWrapper;
+    const RCOLRegister = {
+        "*": RCOLChunk,
+        "GEOM": GEOMRCOLChunk
+    };
+    function getRCOLChunk(data) {
+        var br = new IO.BinaryReader(data);
+        var type = br.readString(4);
+        var chunk = RCOLRegister[type];
+        if (chunk) {
+            var result = new chunk(data);
+            return result;
+        }
+        else {
+            return new RCOLChunk(data);
+        }
+    }
+    exports.getRCOLChunk = getRCOLChunk;
 });
 //# sourceMappingURL=sims4.js.map

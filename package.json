@@ -7,17 +7,21 @@
   "dependencies": {
     "bignumber.js": "^4.0.2",
     "pako": "^1.0.5",
-    "ts-node": "^3.2.0",
     "utf8": "^2.1.2"
   },
   "devDependencies": {
-    "@types/pako": "^1.0.0",
     "@types/bignumber.js": "^4.0.2",
     "@types/chai": "^4.0.1",
     "@types/mocha": "^2.2.41",
+    "@types/node": "^8.0.14",
+    "@types/pako": "^1.0.0",
     "@types/utf8": "^2.1.5",
     "chai": "^4.1.0",
-    "mocha": "^3.4.2"
+    "grunt": "^1.0.1",
+    "grunt-ts": "^6.0.0-beta.16",
+    "mocha": "^3.4.2",
+    "typescript": "^2.4.2",
+    "ts-node": "^3.2.0"
   },
   "scripts": {
     "test": "mocha -r ts-node/register test/**/*_test.ts"

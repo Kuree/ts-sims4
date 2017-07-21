@@ -106,6 +106,7 @@ declare module "package" {
         ResourceGroup: number;
         ResourceInstance: BigNum.BigNumber;
         constructor(type: number, group: number, instance: BigNum.BigNumber);
+        eq(tgi: ITGIBlock): boolean;
     }
     export class ResourceWrapper {
         private _rawData;
@@ -123,6 +124,8 @@ declare module "cas" {
         version: number;
         presetCount: number;
         name: string;
+        sortPriority: number;
+        propertyID: number;
         diffuseKey: number;
         shadowKey: number;
         normalMapKey: number;
@@ -139,4 +142,62 @@ declare module "cas" {
         lodKey: Uint8Array;
         constructor(br: IO.BinaryReader);
     }
+}
+declare module "rcol" {
+    import * as IO from "io";
+    import * as Package from "package";
+    export class RCOLChunk {
+        protected _data: Uint8Array | Blob;
+        constructor(data: Uint8Array | Blob);
+        protected parse(data: Uint8Array | Blob): void;
+    }
+    export class VertexFormat {
+        dataType: VertexDataType;
+        subType: number;
+        bytesPerElement: number;
+        constructor(data: Uint8Array | Blob | IO.BinaryReader);
+    }
+    export enum VertexDataType {
+        Unknown1 = 0,
+        Position = 1,
+        Normal = 2,
+        UV = 3,
+        BoneAssignment = 4,
+        Unknown2 = 4,
+        TangentNormal = 6,
+        Color = 7,
+        Unknown3 = 8,
+        Unknown4 = 9,
+        VertexID = 10,
+    }
+    export class Vertex {
+        type: VertexDataType;
+        value: Array<number>;
+        constructor(type: VertexDataType, value: number[]);
+        toString(): string;
+    }
+    export class VertexData {
+        vData: Array<Vertex>;
+        constructor(data: Uint8Array | Blob | IO.BinaryReader, vertexFormatList: Array<VertexFormat>);
+    }
+    export class GEOMRCOLChunk extends RCOLChunk {
+        static FOURCC: string;
+        version: number;
+        embeddedID: number;
+        mergeGroup: number;
+        sortOrder: number;
+        vertexFormatList: Array<VertexFormat>;
+        vertexDataList: Array<VertexData>;
+        facePointList: Uint16Array;
+        parse(data: Uint8Array | Blob): void;
+    }
+    export class RCOLWrapper extends Package.ResourceWrapper {
+        version: number;
+        index3: number;
+        internalTGIList: Array<Package.ITGIBlock>;
+        externalTGIList: Array<Package.ITGIBlock>;
+        rcolChunkList: Array<RCOLChunk>;
+        protected parse(data: Uint8Array | Blob): void;
+    }
+    export function getRCOLChunk(data: Uint8Array | Blob): RCOLChunk;
 }
