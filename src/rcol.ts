@@ -58,9 +58,6 @@ export class Vertex {
   }
 }
 
-
-
-
 export class VertexData {
   vData: Array<Vertex>;
 
@@ -82,6 +79,19 @@ export class VertexData {
     }
   }
 }
+
+export class SimpleVertex{
+  position: Float32Array;
+  uv: Float32Array;
+  normal: Float32Array;
+
+  constructor(pos, uv, normal) {
+    this.position = pos;
+    this.uv = uv;
+    this.normal = normal;
+  }
+}
+
 
 export class GEOMRCOLChunk extends RCOLChunk {
   static FOURCC = "GEOM";
@@ -146,6 +156,35 @@ export class GEOMRCOLChunk extends RCOLChunk {
     for (var i = 0; i < faceCount; i++){
       this.facePointList[i] = br.readUInt16();
     }
+  }
+
+  getVertexData(): Array<SimpleVertex> {
+    var numVertex = this.vertexDataList.length
+    var result = new Array<SimpleVertex>(numVertex);
+    for (var i = 0; i < numVertex; i++){
+      var v = this.vertexDataList[i];
+      var posV = v.vData.find(entry => { return entry.type === VertexDataType.Position; });
+      if (!posV) { continue; } // malformed data?
+      var uvV = v.vData.find(entry => { return entry.type === VertexDataType.UV; });
+      if (!uvV) { continue; }
+      var normalV = v.vData.find(entry => { return entry.type === VertexDataType.Normal; });
+      if (!normalV) { continue; }
+      result[i] = new SimpleVertex(posV.value, uvV.value, normalV.value);
+    }
+    return result;
+  }
+
+  getFaceData(): Array<number[]>{
+    var list = this.facePointList;
+    var result = new Array<number[]>(list.length / 3);
+    for (var i = 0; i < result.length; i += 3){
+      var value1 = list[i];
+      var value2 = list[i + 1];
+      var value3 = list[i + 2];
+      result[i / 3] = [value1, value2, value3];
+    }
+
+    return result
   }
 }
 

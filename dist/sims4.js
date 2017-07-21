@@ -636,6 +636,14 @@ define("rcol", ["require", "exports", "io", "package"], function (require, expor
         }
     }
     exports.VertexData = VertexData;
+    class SimpleVertex {
+        constructor(pos, uv, normal) {
+            this.position = pos;
+            this.uv = uv;
+            this.normal = normal;
+        }
+    }
+    exports.SimpleVertex = SimpleVertex;
     class GEOMRCOLChunk extends RCOLChunk {
         parse(data) {
             var br = new IO.BinaryReader(data);
@@ -676,6 +684,38 @@ define("rcol", ["require", "exports", "io", "package"], function (require, expor
             for (var i = 0; i < faceCount; i++) {
                 this.facePointList[i] = br.readUInt16();
             }
+        }
+        getVertexData() {
+            var numVertex = this.vertexDataList.length;
+            var result = new Array(numVertex);
+            for (var i = 0; i < numVertex; i++) {
+                var v = this.vertexDataList[i];
+                var posV = v.vData.find(entry => { return entry.type === VertexDataType.Position; });
+                if (!posV) {
+                    continue;
+                }
+                var uvV = v.vData.find(entry => { return entry.type === VertexDataType.UV; });
+                if (!uvV) {
+                    continue;
+                }
+                var normalV = v.vData.find(entry => { return entry.type === VertexDataType.Normal; });
+                if (!normalV) {
+                    continue;
+                }
+                result[i] = new SimpleVertex(posV.value, uvV.value, normalV.value);
+            }
+            return result;
+        }
+        getFaceData() {
+            var list = this.facePointList;
+            var result = new Array(list.length / 3);
+            for (var i = 0; i < result.length; i += 3) {
+                var value1 = list[i];
+                var value2 = list[i + 1];
+                var value3 = list[i + 2];
+                result[i / 3] = [value1, value2, value3];
+            }
+            return result;
         }
     }
     GEOMRCOLChunk.FOURCC = "GEOM";

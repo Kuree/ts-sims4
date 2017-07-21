@@ -43,6 +43,9 @@ describe("Test GEOM Wrapper", () => {
     expect(chunk.facePointList.length).to.equal(0x1D0 * 3);
     var lastFacePoint = chunk.facePointList[chunk.facePointList.length - 1];
     expect(lastFacePoint).to.equal(0x0159);
+
+    expect(chunk.getVertexData().length).to.equal(0x15D);
+    expect(chunk.getFaceData().length).to.equal(0x1D0);
   });
 
 });
