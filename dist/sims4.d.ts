@@ -185,7 +185,7 @@ declare module "rcol" {
         constructor(data: Uint8Array | Blob | IO.BinaryReader, vertexFormatList: Array<VertexFormat>);
     }
     export class SimpleVertex {
-        position: Float32Array;
+        pos: Float32Array;
         uv: Float32Array;
         normal: Float32Array;
         constructor(pos: any, uv: any, normal: any);

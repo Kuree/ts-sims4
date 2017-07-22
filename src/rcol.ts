@@ -81,12 +81,12 @@ export class VertexData {
 }
 
 export class SimpleVertex{
-  position: Float32Array;
+  pos: Float32Array;
   uv: Float32Array;
   normal: Float32Array;
 
   constructor(pos, uv, normal) {
-    this.position = pos;
+    this.pos = pos;
     this.uv = uv;
     this.normal = normal;
   }
@@ -177,7 +177,7 @@ export class GEOMRCOLChunk extends RCOLChunk {
   getFaceData(): Array<number[]>{
     var list = this.facePointList;
     var result = new Array<number[]>(list.length / 3);
-    for (var i = 0; i < result.length; i += 3){
+    for (var i = 0; i < list.length; i += 3){
       var value1 = list[i];
       var value2 = list[i + 1];
       var value3 = list[i + 2];

@@ -640,7 +640,7 @@ define("rcol", ["require", "exports", "io", "package"], function (require, expor
     exports.VertexData = VertexData;
     class SimpleVertex {
         constructor(pos, uv, normal) {
-            this.position = pos;
+            this.pos = pos;
             this.uv = uv;
             this.normal = normal;
         }
@@ -711,7 +711,7 @@ define("rcol", ["require", "exports", "io", "package"], function (require, expor
         getFaceData() {
             var list = this.facePointList;
             var result = new Array(list.length / 3);
-            for (var i = 0; i < result.length; i += 3) {
+            for (var i = 0; i < list.length; i += 3) {
                 var value1 = list[i];
                 var value2 = list[i + 1];
                 var value3 = list[i + 2];
