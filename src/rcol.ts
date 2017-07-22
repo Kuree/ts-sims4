@@ -80,18 +80,6 @@ export class VertexData {
   }
 }
 
-export class SimpleVertex{
-  pos: Float32Array;
-  uv: Float32Array;
-  normal: Float32Array;
-
-  constructor(pos, uv, normal) {
-    this.pos = pos;
-    this.uv = uv;
-    this.normal = normal;
-  }
-}
-
 
 export class GEOMRCOLChunk extends RCOLChunk {
   static FOURCC = "GEOM";
@@ -153,38 +141,70 @@ export class GEOMRCOLChunk extends RCOLChunk {
     // three sets form a face
     var faceCount = br.readUInt32();
     this.facePointList = new Uint16Array(faceCount);
-    for (var i = 0; i < faceCount; i++){
+    for (var i = 0; i < faceCount; i++) {
       this.facePointList[i] = br.readUInt16();
     }
   }
 
-  getVertexData(): Array<SimpleVertex> {
+
+  getThreeJsJSONData() {
+    var vertices = this._getVertexData().pos;
+
+    var faces = this._getFaceData();
+    var json_data = {
+      "metadata": { "formatVersion": 3 },
+      "materials": [],
+      "vertices": vertices,
+      "morphTargets": [],
+      "normals": [],
+      "colors": [],
+      "uvs": [[]],
+      "faces": faces
+    }
+    return json_data;
+  }
+
+  private _getVertexData() {
     var numVertex = this.vertexDataList.length
-    var result = new Array<SimpleVertex>(numVertex);
-    for (var i = 0; i < numVertex; i++){
+    var result = {
+      "pos": new Float32Array(numVertex * 3),
+      "uv": new Float32Array(numVertex * 2),
+      "normal": new Float32Array(numVertex * 3)
+    }
+    for (var i = 0; i < numVertex; i++) {
       var v = this.vertexDataList[i];
       var posV = v.vData.find(entry => { return entry.type === VertexDataType.Position; });
-      if (!posV) { continue; } // malformed data?
+      if (!posV) { throw new TypeError("Malformed data"); } // malformed data?
       var uvV = v.vData.find(entry => { return entry.type === VertexDataType.UV; });
-      if (!uvV) { continue; }
+      if (!uvV) { throw new TypeError("Malformed data"); }
       var normalV = v.vData.find(entry => { return entry.type === VertexDataType.Normal; });
-      if (!normalV) { continue; }
-      result[i] = new SimpleVertex(posV.value, uvV.value, normalV.value);
+      if (!normalV) { throw new TypeError("Malformed data"); }
+
+      result.pos[i * 3] = posV.value[0];
+      result.pos[i * 3 + 1] = posV.value[1];
+      result.pos[i * 3 + 2] = posV.value[2];
+
+      result.uv[i * 2] = uvV.value[0];
+      result.uv[i * 2 + 1] = uvV.value[1];
+
+      result.normal[i * 3] = normalV.value[0];
+      result.normal[i * 3 + 1] = normalV.value[1];
+      result.normal[i * 3 + 2] = normalV.value[2];
     }
     return result;
   }
 
-  getFaceData(): Array<number[]>{
-    var list = this.facePointList;
-    var result = new Array<number[]>(list.length / 3);
-    for (var i = 0; i < list.length; i += 3){
-      var value1 = list[i];
-      var value2 = list[i + 1];
-      var value3 = list[i + 2];
-      result[i / 3] = [value1, value2, value3];
+  private _getFaceData(): Uint32Array {
+    // put version data here
+    var result = new Uint32Array(this.facePointList.length / 3 * 4);
+    var counter = 0;
+    for (var i = 0; i < this.facePointList.length; i++) {
+      if (i % 3 == 0) {
+        result[counter++] = 0;
+      }
+      result[counter++] = this.facePointList[i];
     }
-
-    return result
+    return result;
   }
 }
 

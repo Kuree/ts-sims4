@@ -184,12 +184,6 @@ declare module "rcol" {
         vData: Array<Vertex>;
         constructor(data: Uint8Array | Blob | IO.BinaryReader, vertexFormatList: Array<VertexFormat>);
     }
-    export class SimpleVertex {
-        pos: Float32Array;
-        uv: Float32Array;
-        normal: Float32Array;
-        constructor(pos: any, uv: any, normal: any);
-    }
     export class GEOMRCOLChunk extends RCOLChunk {
         static FOURCC: string;
         version: number;
@@ -200,8 +194,20 @@ declare module "rcol" {
         vertexDataList: Array<VertexData>;
         facePointList: Uint16Array;
         parse(data: Uint8Array | Blob): void;
-        getVertexData(): Array<SimpleVertex>;
-        getFaceData(): Array<number[]>;
+        getThreeJsJSONData(): {
+            "metadata": {
+                "formatVersion": number;
+            };
+            "materials": any[];
+            "vertices": Float32Array;
+            "morphTargets": any[];
+            "normals": any[];
+            "colors": any[];
+            "uvs": any[][];
+            "faces": Uint32Array;
+        };
+        private _getVertexData();
+        private _getFaceData();
     }
     export class RCOLWrapper extends Package.ResourceWrapper {
         version: number;
