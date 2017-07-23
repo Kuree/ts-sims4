@@ -15,7 +15,7 @@ describe("Test RCOL load", () => {
   it("get GEOM RCOL chunk", () => {
     var data = new Uint8Array(100);
     var str = "GEOM";
-    for (var i = 0; i < 4; i++){
+    for (var i = 0; i < 4; i++) {
       data[i] = str.charCodeAt(i);
     }
     data[36] = 1; // bypass the data check
@@ -43,9 +43,15 @@ describe("Test GEOM Wrapper", () => {
     expect(chunk.facePointList.length).to.equal(0x1D0 * 3);
     var lastFacePoint = chunk.facePointList[chunk.facePointList.length - 1];
     expect(lastFacePoint).to.equal(0x0159);
-
-    expect(chunk.getVertexData().length).to.equal(0x15D);
-    expect(chunk.getFaceData().length).to.equal(0x1D0);
+  });
+  it("Three.Js helper functions", () => {
+    var geom = new RCOL.RCOLWrapper(stream);
+    var chunk = <RCOL.GEOMRCOLChunk>geom.rcolChunkList[0];
+    var jsonData = chunk.getThreeJsJSONData();
+    expect(jsonData.vertices.length).to.equal(0x15D * 3);
+    // expect(vertexData.uv.length).to.equal(0x15D * 2);
+    // expect(vertexData.normal.length).to.equal(0x15D * 3);
+    expect(jsonData.faces.length).to.equal(0x1D0 * 10);
   });
 
 });

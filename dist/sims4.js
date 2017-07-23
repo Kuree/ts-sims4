@@ -574,6 +574,117 @@ define("cas", ["require", "exports", "package", "io"], function (require, export
     }
     exports.LOD = LOD;
 });
+define("img", ["require", "exports", "io", "package"], function (require, exports, IO, Package) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var RLEVersion;
+    (function (RLEVersion) {
+        RLEVersion[RLEVersion["RLE2"] = 843402322] = "RLE2";
+        RLEVersion[RLEVersion["RLES"] = 1397050450] = "RLES";
+    })(RLEVersion = exports.RLEVersion || (exports.RLEVersion = {}));
+    var FourCC;
+    (function (FourCC) {
+        FourCC[FourCC["DST1"] = 827609924] = "DST1";
+        FourCC[FourCC["DST3"] = 861164356] = "DST3";
+        FourCC[FourCC["DST5"] = 894718788] = "DST5";
+        FourCC[FourCC["DXT1"] = 827611204] = "DXT1";
+        FourCC[FourCC["DXT3"] = 861165636] = "DXT3";
+        FourCC[FourCC["DXT5"] = 894720068] = "DXT5";
+        FourCC[FourCC["ATI1"] = 826889281] = "ATI1";
+        FourCC[FourCC["ATI2"] = 843666497] = "ATI2";
+        FourCC[FourCC["None"] = 0] = "None";
+    })(FourCC = exports.FourCC || (exports.FourCC = {}));
+    var HeaderFlags;
+    (function (HeaderFlags) {
+        HeaderFlags[HeaderFlags["Texture"] = 4103] = "Texture";
+        HeaderFlags[HeaderFlags["Mipmap"] = 131072] = "Mipmap";
+        HeaderFlags[HeaderFlags["Volume"] = 8388608] = "Volume";
+        HeaderFlags[HeaderFlags["Pitch"] = 8] = "Pitch";
+        HeaderFlags[HeaderFlags["LinearSize"] = 524288] = "LinearSize";
+    })(HeaderFlags = exports.HeaderFlags || (exports.HeaderFlags = {}));
+    var PixelFormatFlags;
+    (function (PixelFormatFlags) {
+        PixelFormatFlags[PixelFormatFlags["FourCC"] = 4] = "FourCC";
+        PixelFormatFlags[PixelFormatFlags["RGB"] = 64] = "RGB";
+        PixelFormatFlags[PixelFormatFlags["RGBA"] = 65] = "RGBA";
+        PixelFormatFlags[PixelFormatFlags["Luminance"] = 131072] = "Luminance";
+    })(PixelFormatFlags = exports.PixelFormatFlags || (exports.PixelFormatFlags = {}));
+    class PixelFormat {
+        constructor(data) {
+            this.size = 32;
+            if (data) {
+                var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
+                var size = br.readUInt32();
+                if (size != this.size) {
+                    throw new TypeError("Invalid format");
+                }
+                this.pixelFormatFlag = br.readUInt32();
+                var fourcc = br.readUInt32();
+                this.RGBBitCount = br.readUInt32();
+                this.redBitMask = br.readUInt32();
+                this.greenBitMask = br.readUInt32();
+                this.blueBitMask = br.readUInt32();
+                this.alphaBitMask = br.readUInt32();
+            }
+            else {
+                this.RGBBitCount = 32;
+                this.redBitMask = 0x00FF0000;
+                this.greenBitMask = 0x0000FF00;
+                this.blueBitMask = 0x000000FF;
+                this.alphaBitMask = 0xFF000000;
+            }
+        }
+    }
+    PixelFormat.StructureSize = 32;
+    exports.PixelFormat = PixelFormat;
+    class RLEInfo {
+        constructor(data) {
+            this.Signature = 0x20534444;
+            this.Depth = 1;
+            var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
+            br.seek(0);
+            var fourcc = br.readUInt32();
+            this.Version = br.readUInt32();
+            this.Width = br.readUInt16();
+            this.Height = br.readUInt16();
+            this.mipCount = br.readUInt16();
+            this.Unknown0E = br.readUInt16();
+            this.headerFlags = HeaderFlags.Texture;
+            if (this.Unknown0E !== 0) {
+                throw new TypeError("Invalid data at position " + br.position());
+            }
+            this.pixelFormat = new PixelFormat();
+        }
+        size() { return (18 * 4) + PixelFormat.StructureSize + (5 * 4); }
+    }
+    exports.RLEInfo = RLEInfo;
+    class MipHeader {
+    }
+    exports.MipHeader = MipHeader;
+    class RLEWrapper extends Package.ResourceWrapper {
+        parse(data) {
+            var br = new IO.BinaryReader(data);
+            this.info = new RLEInfo(br);
+            this.MipHeaders = new Array(this.info.mipCount + 1);
+            for (var i = 0; i < this.info.mipCount; i++) {
+                var header = new MipHeader();
+                header.CommandOffset = br.readInt32();
+                header.Offset2 = br.readInt32();
+                header.Offset3 = br.readInt32();
+                header.Offset0 = br.readInt32();
+                header.Offset1 = br.readInt32();
+                this.MipHeaders[i] = header;
+            }
+            var header = new MipHeader();
+            header.CommandOffset = this.MipHeaders[0].Offset2;
+            header.Offset2 = this.MipHeaders[0].Offset3;
+            header.Offset3 = this.MipHeaders[0].Offset0;
+            header.Offset0 = this.MipHeaders[0].Offset1;
+            this.MipHeaders[this.info.mipCount] = header;
+        }
+    }
+    exports.RLEWrapper = RLEWrapper;
+});
 define("rcol", ["require", "exports", "io", "package"], function (require, exports, IO, Package) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -680,16 +791,17 @@ define("rcol", ["require", "exports", "io", "package"], function (require, expor
             }
         }
         getThreeJsJSONData() {
-            var vertices = this._getVertexData().pos;
-            var faces = this._getFaceData();
+            var vertexData = this._getVertexData();
+            var vertices = vertexData.pos;
+            var faces = this._getFaceData(vertexData);
             var json_data = {
                 "metadata": { "formatVersion": 3 },
                 "materials": [],
                 "vertices": vertices,
                 "morphTargets": [],
-                "normals": [],
+                "normals": vertexData.normal,
                 "colors": [],
-                "uvs": [[]],
+                "uvs": [vertexData.uv],
                 "faces": faces
             };
             return json_data;
@@ -726,14 +838,44 @@ define("rcol", ["require", "exports", "io", "package"], function (require, expor
             }
             return result;
         }
-        _getFaceData() {
-            var result = new Uint32Array(this.facePointList.length / 3 * 4);
+        _getFaceData(vertexData) {
+            var hasUV = false;
+            var hasNormal = false;
+            var flag = 0;
+            var size = 3 + 1;
+            if (vertexData.uv.length > 0) {
+                hasUV = true;
+                flag = flag | (1 << 3);
+                size += 3;
+            }
+            if (vertexData.normal.length > 0) {
+                hasNormal = true;
+                flag = flag | (1 << 5);
+                size += 3;
+            }
+            var result = new Uint32Array(this.facePointList.length / 3 * size);
             var counter = 0;
-            for (var i = 0; i < this.facePointList.length; i++) {
-                if (i % 3 == 0) {
-                    result[counter++] = 0;
+            var faceCounter = 0;
+            while (counter < result.length) {
+                if (counter % size == 0) {
+                    result[counter++] = flag;
                 }
-                result[counter++] = this.facePointList[i];
+                var face0 = this.facePointList[faceCounter++];
+                var face1 = this.facePointList[faceCounter++];
+                var face2 = this.facePointList[faceCounter++];
+                result[counter++] = face0;
+                result[counter++] = face1;
+                result[counter++] = face2;
+                if (hasUV) {
+                    result[counter++] = face0;
+                    result[counter++] = face1;
+                    result[counter++] = face2;
+                }
+                if (hasNormal) {
+                    result[counter++] = face0;
+                    result[counter++] = face1;
+                    result[counter++] = face2;
+                }
             }
             return result;
         }

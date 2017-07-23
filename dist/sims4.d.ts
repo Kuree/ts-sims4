@@ -147,6 +147,83 @@ declare module "cas" {
         constructor(br: IO.BinaryReader);
     }
 }
+declare module "img" {
+    import * as IO from "io";
+    import * as Package from "package";
+    export enum RLEVersion {
+        RLE2 = 843402322,
+        RLES = 1397050450,
+    }
+    export enum FourCC {
+        DST1 = 827609924,
+        DST3 = 861164356,
+        DST5 = 894718788,
+        DXT1 = 827611204,
+        DXT3 = 861165636,
+        DXT5 = 894720068,
+        ATI1 = 826889281,
+        ATI2 = 843666497,
+        None = 0,
+    }
+    export enum HeaderFlags {
+        Texture = 4103,
+        Mipmap = 131072,
+        Volume = 8388608,
+        Pitch = 8,
+        LinearSize = 524288,
+    }
+    export enum PixelFormatFlags {
+        FourCC = 4,
+        RGB = 64,
+        RGBA = 65,
+        Luminance = 131072,
+    }
+    export class PixelFormat {
+        readonly size: number;
+        pixelFormatFlag: PixelFormatFlags;
+        Fourcc: FourCC;
+        RGBBitCount: number;
+        redBitMask: number;
+        greenBitMask: number;
+        blueBitMask: number;
+        alphaBitMask: number;
+        fourcc: FourCC;
+        static readonly StructureSize: number;
+        constructor(data?: Blob | Uint8Array | IO.BinaryReader);
+    }
+    export class RLEInfo {
+        readonly Signature: number;
+        size(): number;
+        headerFlags: HeaderFlags;
+        Height: number;
+        Width: number;
+        PitchOrLinearSize: number;
+        Depth: number;
+        Reserved1: Uint8Array;
+        pixelFormat: PixelFormat;
+        surfaceFlags: number;
+        cubemapFlags: number;
+        reserved2: Uint8Array;
+        Version: RLEVersion;
+        HasSpecular: boolean;
+        mipCount: number;
+        Unknown0E: number;
+        constructor(data: Blob | Uint8Array | IO.BinaryReader);
+    }
+    export class MipHeader {
+        CommandOffset: number;
+        Offset0: number;
+        Offset1: number;
+        Offset2: number;
+        Offset3: number;
+        Offset4: number;
+    }
+    export class RLEWrapper extends Package.ResourceWrapper {
+        private info;
+        private MipHeaders;
+        protected parse(data: Uint8Array | Blob): void;
+    }
+}
 declare module "rcol" {
     import * as IO from "io";
     import * as Package from "package";
@@ -201,13 +278,13 @@ declare module "rcol" {
             "materials": any[];
             "vertices": Float32Array;
             "morphTargets": any[];
-            "normals": any[];
+            "normals": Float32Array;
             "colors": any[];
-            "uvs": any[][];
+            "uvs": Float32Array[];
             "faces": Uint32Array;
         };
         private _getVertexData();
-        private _getFaceData();
+        private _getFaceData(vertexData);
     }
     export class RCOLWrapper extends Package.ResourceWrapper {
         version: number;
