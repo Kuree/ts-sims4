@@ -261,7 +261,6 @@ export class BinaryWriter {
   writeUInt32(num: number) { this._encodeInt(num, 32, false); }
 
   writeUInt64(num: Uint64) {
-
     var hi = num.hi;
     var lo = num.lo;
 
@@ -344,5 +343,34 @@ export class BinaryWriter {
       dest[i + src1.length] = src2[i];
     }
     return dest;
+  }
+}
+
+export class BitConverter{
+  private static _readNumber(data: Uint8Array | Blob, offset: number, size: number, signed: boolean) {
+    var br = new BinaryReader(data);
+    br.seek(offset);
+    if (size == 8) {
+      return signed? br.readInt8() : br.readUInt8();
+    } else if (size == 16) {
+      return signed? br.readInt16() : br.readUInt16();
+    } else if (size == 32) {
+      return signed? br.readInt32() : br.readUInt32();
+    } else {
+      throw new Error("Not implemented");
+    }
+  }
+
+  static toUInt16(data: Uint8Array | Blob, offset: number) {
+    return BitConverter._readNumber(data, offset, 16, false);
+  }
+  static toInt16(data: Uint8Array | Blob, offset: number) {
+    return BitConverter._readNumber(data, offset, 16, true);
+  }
+  static toUInt32(data: Uint8Array | Blob, offset: number) {
+    return BitConverter._readNumber(data, offset, 32, false);
+  }
+  static toInt32(data: Uint8Array | Blob, offset: number) {
+    return BitConverter._readNumber(data, offset, 32, true);
   }
 }

@@ -182,6 +182,19 @@ describe("Test BinaryWriter", () => {
     expect(bw.length()).to.equal(4);
   });
 
+  it("writeUInt64() - little endian", () => {
+    var bw = new IO.BinaryWriter(4);
+    bw.writeUInt64(new IO.Uint64(0x42434445, 0x46474849));
+    expect(bw.getBuffer()[0]).to.equal(0x49);
+    expect(bw.getBuffer()[1]).to.equal(0x48);
+    expect(bw.getBuffer()[2]).to.equal(0x47);
+    expect(bw.getBuffer()[3]).to.equal(0x46);
+    expect(bw.getBuffer()[4]).to.equal(0x45);
+    expect(bw.getBuffer()[5]).to.equal(0x44);
+    expect(bw.getBuffer()[6]).to.equal(0x43);
+    expect(bw.getBuffer()[7]).to.equal(0x42);
+    expect(bw.length()).to.equal(8);
+  });
 
   it("Test overflow", () => {
     var bw = new IO.BinaryWriter(2);
@@ -189,15 +202,17 @@ describe("Test BinaryWriter", () => {
     bw.writeInt32(42);
     bw.writeInt32(42);
     bw.writeInt16(42);
+    bw.seek(2);
+    bw.writeInt16(42);
     expect(bw.length()).to.equal(14);
     var buffer = bw.getBuffer();
     expect(buffer[0]).to.equal(42);
+    expect(buffer[1]).to.equal(0);
+    expect(buffer[2]).to.equal(42);
+    expect(buffer[3]).to.equal(0);
     expect(buffer[4]).to.equal(42);
     expect(buffer[8]).to.equal(42);
     expect(buffer[12]).to.equal(42);
   });
-
-
-
 
 });
