@@ -3,7 +3,7 @@ import 'mocha'
 import * as IO from '../src/io'
 
 describe("Test BinaryReader", () => {
-  it("readInt8() - readUInt8()", () => {
+  it("readInt8() - little endian", () => {
     let buffer = new ArrayBuffer(4);
     let array = new Uint8Array(buffer);
     array[0] = 42;
@@ -109,6 +109,95 @@ describe("Test BinaryReader", () => {
     var br = new IO.BinaryReader(array);
     expect(br.readString(2)).to.equal("42");
   });
+
+
+});
+
+describe("Test BinaryWriter", () => {
+  it("writeInt8() - little endian", () => {
+    var bw = new IO.BinaryWriter(4);
+    bw.writeUInt8(42);
+    expect(bw.getBuffer()[0]).to.equal(42);
+    expect(bw.length()).to.equal(1);
+  });
+
+  it("writeUInt16() - little endian", () => {
+    var bw = new IO.BinaryWriter(4);
+    bw.writeUInt16(0x4243);
+    expect(bw.getBuffer()[0]).to.equal(0x43);
+    expect(bw.getBuffer()[1]).to.equal(0x42);
+    expect(bw.length()).to.equal(2);
+  });
+
+  it("writeUInt16() - big endian", () => {
+    var bw = new IO.BinaryWriter(4, false);
+    bw.writeUInt16(0x4243);
+    expect(bw.getBuffer()[1]).to.equal(0x43);
+    expect(bw.getBuffer()[0]).to.equal(0x42);
+    expect(bw.length()).to.equal(2);
+  });
+
+  it("writeUInt32() - little endian", () => {
+    var bw = new IO.BinaryWriter(4);
+    bw.writeUInt32(0x42434445);
+    expect(bw.getBuffer()[0]).to.equal(0x45);
+    expect(bw.getBuffer()[1]).to.equal(0x44);
+    expect(bw.getBuffer()[2]).to.equal(0x43);
+    expect(bw.getBuffer()[3]).to.equal(0x42);
+    expect(bw.length()).to.equal(4);
+  });
+
+  it("writeUInt32() - big endian", () => {
+    var bw = new IO.BinaryWriter(4, false);
+    bw.writeUInt32(0x42434445);
+    expect(bw.getBuffer()[3]).to.equal(0x45);
+    expect(bw.getBuffer()[2]).to.equal(0x44);
+    expect(bw.getBuffer()[1]).to.equal(0x43);
+    expect(bw.getBuffer()[0]).to.equal(0x42);
+    expect(bw.length()).to.equal(4);
+  });
+
+  it("writeInt8() - little endian", () => {
+    var bw = new IO.BinaryWriter(4);
+    bw.writeInt8(-2);
+    expect(bw.getBuffer()[0]).to.equal(0xFE);
+    expect(bw.length()).to.equal(1);
+  });
+
+  it("writeInt16() - little endian", () => {
+    var bw = new IO.BinaryWriter(4);
+    bw.writeInt16(-2);
+    expect(bw.getBuffer()[0]).to.equal(0xFE);
+    expect(bw.getBuffer()[1]).to.equal(0xFF);
+    expect(bw.length()).to.equal(2);
+  });
+
+  it("writeInt32() - little endian", () => {
+    var bw = new IO.BinaryWriter(4);
+    bw.writeInt32(-2);
+    expect(bw.getBuffer()[3]).to.equal(0xFF);
+    expect(bw.getBuffer()[2]).to.equal(0xFF);
+    expect(bw.getBuffer()[1]).to.equal(0xFF);
+    expect(bw.getBuffer()[0]).to.equal(0xFE);
+    expect(bw.length()).to.equal(4);
+  });
+
+
+  it("Test overflow", () => {
+    var bw = new IO.BinaryWriter(2);
+    bw.writeInt32(42);
+    bw.writeInt32(42);
+    bw.writeInt32(42);
+    bw.writeInt16(42);
+    expect(bw.length()).to.equal(14);
+    var buffer = bw.getBuffer();
+    expect(buffer[0]).to.equal(42);
+    expect(buffer[4]).to.equal(42);
+    expect(buffer[8]).to.equal(42);
+    expect(buffer[12]).to.equal(42);
+  });
+
+
 
 
 });

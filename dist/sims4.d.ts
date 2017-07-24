@@ -26,7 +26,6 @@ declare module "io" {
         seek(pos: number): void;
         position(): number;
         size(): number;
-        private _shuffle(num, size);
         private _decodeFloat(precisionBits, exponentBits);
         private _readByte(i, size);
         private _decodeBigNumber();
@@ -46,7 +45,7 @@ declare module "io" {
         length(): number;
         seek(pos: number): void;
         position(): number;
-        getStream(): Uint8Array;
+        getBuffer(): Uint8Array;
         writeInt8(num: number): void;
         writeUInt8(num: number): void;
         writeInt16(num: number): void;
@@ -57,7 +56,7 @@ declare module "io" {
         writeBytes(bytes: Uint8Array): void;
         writeByte(byte: number): void;
         writeString(str: string): void;
-        private _encodeInt(num, size);
+        private _encodeInt(num, size, signed);
         private _checkSize(size);
         private _expand();
         private _arrayCopy(src1, src2, dest?);

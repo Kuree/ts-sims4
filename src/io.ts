@@ -1,6 +1,6 @@
 import * as utf8 from 'utf8'
 
-export class Uint64{
+export class Uint64 {
   hi: number;
   lo: number;
   constructor(hi: number, lo: number) {
@@ -19,6 +19,28 @@ export class Uint64{
     var loString = padString(this.lo.toString(16), 8, '0');
     var hiString = this.hi.toString(16);
     return hiString + loString;
+  }
+}
+
+function _shuffle(num: number, size: number): number {
+  if (size % 8 != 0) {
+    throw new TypeError("Size must be 8's multiples");
+  }
+  if (size == 8) {
+    return num;
+  } else if (size == 16) {
+    return ((num & 0xFF) << 8) | ((num >> 8) & 0xFF);
+  } else if (size == 32) {
+    return ((num & 0x000000FF) << 24) | ((num & 0x0000FF00) << 8)
+      | ((num & 0x00FF0000) >> 8) | ((num >> 24) & 0xFF);
+  } else if (size == 64) {
+    var x = num;
+    x = (x & 0x00000000FFFFFFFF) << 32 | (x & 0xFFFFFFFF00000000) >> 32;
+    x = (x & 0x0000FFFF0000FFFF) << 16 | (x & 0xFFFF0000FFFF0000) >> 16;
+    x = (x & 0x00FF00FF00FF00FF) << 8 | (x & 0xFF00FF00FF00FF00) >> 8;
+    return x;
+  } else {
+    throw new TypeError("Unsupported endianess size");
   }
 }
 
@@ -88,28 +110,6 @@ export class BinaryReader {
     return this._buffer instanceof Uint8Array ? this._buffer.length : this._buffer.size;
   }
 
-  private _shuffle(num: number, size: number): number {
-    if (size % 8 != 0) {
-      throw new TypeError("Size must be 8's multiples");
-    }
-    if (size == 8) {
-      return num;
-    } else if (size == 16) {
-      return ((num & 0xFF) << 8) | ((num >> 8) & 0xFF);
-    } else if (size == 32) {
-      return ((num & 0x000000FF) << 24) | ((num & 0x0000FF00) << 8)
-        | ((num & 0x00FF0000) >> 8) | ((num >> 24) & 0xFF);
-    } else if (size == 64) {
-      var x = num;
-      x = (x & 0x00000000FFFFFFFF) << 32 | (x & 0xFFFFFFFF00000000) >> 32;
-      x = (x & 0x0000FFFF0000FFFF) << 16 | (x & 0xFFFF0000FFFF0000) >> 16;
-      x = (x & 0x00FF00FF00FF00FF) << 8 | (x & 0xFF00FF00FF00FF00) >> 8;
-      return x;
-    } else {
-      throw new TypeError("Unsupported endianess size");
-    }
-  }
-
   private _decodeFloat(precisionBits: number, exponentBits: number): number {
     var length = precisionBits + exponentBits + 1;
     var size = length >> 3;
@@ -163,7 +163,7 @@ export class BinaryReader {
   private _decodeInt(bits: number, signed: boolean): number {
     var x = this._readBits(0, bits, bits / 8), max = Math.pow(2, bits);
     if (!this.littleEndian) {
-      x = this._shuffle(x, bits);
+      x = _shuffle(x, bits);
     }
     var result = signed && x >= max / 2 ? x - max : x;
 
@@ -249,16 +249,16 @@ export class BinaryWriter {
     return this._pos;
   }
 
-  getStream() {
+  getBuffer() {
     return this._buffer.slice(0, this._length);
   }
 
-  writeInt8(num: number) { this._encodeInt(num, 8); }
-  writeUInt8(num: number) { this._encodeInt(num, 8); }
-  writeInt16(num: number) { this._encodeInt(num, 16); }
-  writeUInt16(num: number) { this._encodeInt(num, 16); }
-  writeInt32(num: number) { this._encodeInt(num, 32); }
-  writeUInt32(num: number) { this._encodeInt(num, 32); }
+  writeInt8(num: number) { this._encodeInt(num, 8, true); }
+  writeUInt8(num: number) { this._encodeInt(num, 8, false); }
+  writeInt16(num: number) { this._encodeInt(num, 16, true); }
+  writeUInt16(num: number) { this._encodeInt(num, 16, false); }
+  writeInt32(num: number) { this._encodeInt(num, 32, true); }
+  writeUInt32(num: number) { this._encodeInt(num, 32, false); }
 
   writeUInt64(num: Uint64) {
 
@@ -267,17 +267,17 @@ export class BinaryWriter {
 
     // position will be handled by encodeInt
     if (this.littleEndian) {
-      this._encodeInt(lo, 32);
-      this._encodeInt(hi, 32);
+      this._encodeInt(lo, 32, false);
+      this._encodeInt(hi, 32, false);
     } else {
-      this._encodeInt(hi, 32);
-      this._encodeInt(lo, 32);
+      this._encodeInt(hi, 32, false);
+      this._encodeInt(lo, 32, false);
     }
   }
 
   writeBytes(bytes: Uint8Array) {
     this._checkSize(bytes.length);
-    for (var i = 0; i < bytes.length; i++){
+    for (var i = 0; i < bytes.length; i++) {
       this._buffer[this._pos + i] = bytes[i];
     }
 
@@ -295,21 +295,26 @@ export class BinaryWriter {
   writeString(str: string) {
     var byteString = utf8.encode(str);
     var bytes = new Uint8Array(byteString.length);
-    for (var i = 0; i < bytes.length; i++){
+    for (var i = 0; i < bytes.length; i++) {
       bytes[i] = byteString.charCodeAt(i);
     }
 
     this.writeBytes(bytes);
   }
 
-  private _encodeInt(num: number, size: number) {
+  private _encodeInt(num: number, size: number, signed: boolean) {
     if (size % 8 !== 0) {
       throw new TypeError("Invalid number size");
+    }
+    if (!this.littleEndian) { num = _shuffle(num, size); }
+    if (signed && num < 0) {
+      var max = 0xFFFFFFFF >> (32 - size);
+      num = max + num + 1;
     }
     var numBytes = Math.floor(size / 8);
     var array = new Uint8Array(numBytes);
     for (var i = 0; i < numBytes; i++) {
-      var shiftAmount = this.littleEndian ? 8 * i : 8 * (3 - i);
+      var shiftAmount = 8 * i;
       var byte = (num >> shiftAmount) & 0xFF;
       array[i] = byte;
     }
