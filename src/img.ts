@@ -133,8 +133,8 @@ export class RLEInfo {
     w.writeUInt32(this.size());
     w.writeUInt32(this.mipCount > 1 ? this.headerFlags | HeaderFlags.Mipmap | HeaderFlags.LinearSize : this.headerFlags | HeaderFlags.LinearSize);
 
-    w.writeUInt16(this.Height);
-    w.writeUInt16(this.Width);
+    w.writeUInt32(this.Height);
+    w.writeUInt32(this.Width);
 
     // PitchOrLinearSize = 0
     var blockSize = this.pixelFormat.Fourcc == FourCC.DST1 || this.pixelFormat.Fourcc == FourCC.DXT1 || this.pixelFormat.Fourcc == FourCC.ATI1 ? 8 : 16;
@@ -189,6 +189,13 @@ export class RLEWrapper extends Package.ResourceWrapper {
     header.Offset3 = this.MipHeaders[0].Offset0;
     header.Offset0 = this.MipHeaders[0].Offset1;
     this.MipHeaders[this.info.mipCount] = header;
+
+    if (this.info.Version == RLEVersion.RLES) {
+      this.MipHeaders[this.info.mipCount].Offset1 = this.MipHeaders[0].Offset4;
+      this.MipHeaders[this.info.mipCount].Offset4 = br.size();
+    } else {
+      this.MipHeaders[this.info.mipCount].Offset1 = br.size();
+    }
 
     this._data = data;
 

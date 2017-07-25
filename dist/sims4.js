@@ -292,6 +292,37 @@ define("io", ["require", "exports", "utf8"], function (require, exports, utf8) {
         }
     }
     exports.BinaryWriter = BinaryWriter;
+    class BitConverter {
+        static _readNumber(data, offset, size, signed) {
+            var br = new BinaryReader(data);
+            br.seek(offset);
+            if (size == 8) {
+                return signed ? br.readInt8() : br.readUInt8();
+            }
+            else if (size == 16) {
+                return signed ? br.readInt16() : br.readUInt16();
+            }
+            else if (size == 32) {
+                return signed ? br.readInt32() : br.readUInt32();
+            }
+            else {
+                throw new Error("Not implemented");
+            }
+        }
+        static toUInt16(data, offset) {
+            return BitConverter._readNumber(data, offset, 16, false);
+        }
+        static toInt16(data, offset) {
+            return BitConverter._readNumber(data, offset, 16, true);
+        }
+        static toUInt32(data, offset) {
+            return BitConverter._readNumber(data, offset, 32, false);
+        }
+        static toInt32(data, offset) {
+            return BitConverter._readNumber(data, offset, 32, true);
+        }
+    }
+    exports.BitConverter = BitConverter;
 });
 define("package", ["require", "exports", "io", "pako"], function (require, exports, IO, pako) {
     "use strict";
@@ -616,9 +647,16 @@ define("img", ["require", "exports", "io", "package"], function (require, export
         PixelFormatFlags[PixelFormatFlags["RGBA"] = 65] = "RGBA";
         PixelFormatFlags[PixelFormatFlags["Luminance"] = 131072] = "Luminance";
     })(PixelFormatFlags = exports.PixelFormatFlags || (exports.PixelFormatFlags = {}));
+    var DDSCaps;
+    (function (DDSCaps) {
+        DDSCaps[DDSCaps["DDSCaps_Complex"] = 8] = "DDSCaps_Complex";
+        DDSCaps[DDSCaps["DDSCaps_Mipmap"] = 4194304] = "DDSCaps_Mipmap";
+        DDSCaps[DDSCaps["DDSCaps_Texture"] = 4096] = "DDSCaps_Texture";
+    })(DDSCaps || (DDSCaps = {}));
     class PixelFormat {
         constructor(data) {
             this.size = 32;
+            this.fourcc = FourCC.DXT5;
             if (data) {
                 var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
                 var size = br.readUInt32();
@@ -626,7 +664,7 @@ define("img", ["require", "exports", "io", "package"], function (require, export
                     throw new TypeError("Invalid format");
                 }
                 this.pixelFormatFlag = br.readUInt32();
-                var fourcc = br.readUInt32();
+                this.fourcc = br.readUInt32();
                 this.RGBBitCount = br.readUInt32();
                 this.redBitMask = br.readUInt32();
                 this.greenBitMask = br.readUInt32();
@@ -641,13 +679,25 @@ define("img", ["require", "exports", "io", "package"], function (require, export
                 this.alphaBitMask = 0xFF000000;
             }
         }
+        ;
+        unParse(w) {
+            w.writeUInt32(this.size);
+            w.writeUInt32(this.pixelFormatFlag);
+            w.writeUInt32(this.fourcc);
+            w.writeUInt32(this.RGBBitCount);
+            w.writeUInt32(this.redBitMask);
+            w.writeUInt32(this.greenBitMask);
+            w.writeUInt32(this.blueBitMask);
+            w.writeUInt32(this.alphaBitMask);
+        }
     }
     PixelFormat.StructureSize = 32;
     exports.PixelFormat = PixelFormat;
     class RLEInfo {
         constructor(data) {
-            this.Signature = 0x20534444;
             this.Depth = 1;
+            this.Reserved1 = new Uint8Array(11 * 4);
+            this.reserved2 = new Uint8Array(3 * 4);
             var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
             br.seek(0);
             var fourcc = br.readUInt32();
@@ -663,7 +713,24 @@ define("img", ["require", "exports", "io", "package"], function (require, export
             this.pixelFormat = new PixelFormat();
         }
         size() { return (18 * 4) + PixelFormat.StructureSize + (5 * 4); }
+        unParse(w) {
+            w.writeUInt32(RLEInfo.Signature);
+            w.writeUInt32(this.size());
+            w.writeUInt32(this.mipCount > 1 ? this.headerFlags | HeaderFlags.Mipmap | HeaderFlags.LinearSize : this.headerFlags | HeaderFlags.LinearSize);
+            w.writeUInt32(this.Height);
+            w.writeUInt32(this.Width);
+            var blockSize = this.pixelFormat.Fourcc == FourCC.DST1 || this.pixelFormat.Fourcc == FourCC.DXT1 || this.pixelFormat.Fourcc == FourCC.ATI1 ? 8 : 16;
+            w.writeUInt32(Math.floor((Math.max(1, ((this.Width + 3) / 4)) * blockSize) * (Math.max(1, (this.Height + 3) / 4))));
+            w.writeUInt32(1);
+            w.writeUInt32(this.mipCount);
+            w.writeBytes(this.Reserved1);
+            this.pixelFormat.unParse(w);
+            w.writeUInt32(this.mipCount > 1 ? DDSCaps.DDSCaps_Complex | DDSCaps.DDSCaps_Mipmap | DDSCaps.DDSCaps_Texture : DDSCaps.DDSCaps_Texture);
+            w.writeUInt32(0);
+            w.writeBytes(this.reserved2);
+        }
     }
+    RLEInfo.Signature = 0x20534444;
     exports.RLEInfo = RLEInfo;
     class MipHeader {
     }
@@ -688,6 +755,75 @@ define("img", ["require", "exports", "io", "package"], function (require, export
             header.Offset3 = this.MipHeaders[0].Offset0;
             header.Offset0 = this.MipHeaders[0].Offset1;
             this.MipHeaders[this.info.mipCount] = header;
+            if (this.info.Version == RLEVersion.RLES) {
+                this.MipHeaders[this.info.mipCount].Offset1 = this.MipHeaders[0].Offset4;
+                this.MipHeaders[this.info.mipCount].Offset4 = br.size();
+            }
+            else {
+                this.MipHeaders[this.info.mipCount].Offset1 = br.size();
+            }
+            this._data = data;
+        }
+        toDDS() {
+            var w = new IO.BinaryWriter();
+            this.info.unParse(w);
+            var fullTransparentAlpha = Uint8Array.from([0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            var fullTransparentColor = Uint8Array.from([0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            var fullOpaqueAlpha = Uint8Array.from([0x00, 0x05, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+            if (this.info.Version != RLEVersion.RLE2) {
+                throw new Error("Format other than RLE2 is not supported");
+            }
+            for (var i = 0; i < this.info.mipCount; i++) {
+                var mipHeader = this.MipHeaders[i];
+                var nextMipHeader = this.MipHeaders[i + 1];
+                var blockOffset2, blockOffset3, blockOffset0, blockOffset1;
+                blockOffset2 = mipHeader.Offset2;
+                blockOffset3 = mipHeader.Offset3;
+                blockOffset0 = mipHeader.Offset0;
+                blockOffset1 = mipHeader.Offset1;
+                for (var commandOffset = mipHeader.CommandOffset; commandOffset < nextMipHeader.CommandOffset; commandOffset += 2) {
+                    var command = IO.BitConverter.toUInt16(this._data, commandOffset);
+                    var op = command & 3;
+                    var count = command >> 2;
+                    if (op == 0) {
+                        for (var j = 0; j < count; j++) {
+                            w.writeBytes(fullTransparentAlpha.slice(0, 8));
+                            w.writeBytes(fullTransparentAlpha.slice(0, 8));
+                        }
+                    }
+                    else if (op == 1) {
+                        for (var j = 0; j < count; j++) {
+                            w.writeBytes(IO.convertToUint8Array(this._data.slice(blockOffset0, blockOffset0 + 2)));
+                            w.writeBytes(IO.convertToUint8Array(this._data.slice(blockOffset1, blockOffset1 + 6)));
+                            w.writeBytes(IO.convertToUint8Array(this._data.slice(blockOffset2, blockOffset2 + 4)));
+                            w.writeBytes(IO.convertToUint8Array(this._data.slice(blockOffset3, blockOffset3 + 4)));
+                            blockOffset2 += 4;
+                            blockOffset3 += 4;
+                            blockOffset0 += 2;
+                            blockOffset1 += 6;
+                        }
+                    }
+                    else if (op == 2) {
+                        for (var j = 0; j < count; j++) {
+                            w.writeBytes(fullOpaqueAlpha.slice(0, 8));
+                            w.writeBytes(IO.convertToUint8Array(this._data.slice(blockOffset2, blockOffset2 + 4)));
+                            w.writeBytes(IO.convertToUint8Array(this._data.slice(blockOffset3, 4)));
+                            blockOffset2 += 4;
+                            blockOffset3 += 4;
+                        }
+                    }
+                    else {
+                        throw new Error("Not supported");
+                    }
+                }
+                if (blockOffset0 != nextMipHeader.Offset0 ||
+                    blockOffset1 != nextMipHeader.Offset1 ||
+                    blockOffset2 != nextMipHeader.Offset2 ||
+                    blockOffset3 != nextMipHeader.Offset3) {
+                    throw new Error("Invalid operation");
+                }
+            }
+            return w.getBuffer();
         }
     }
     exports.RLEWrapper = RLEWrapper;

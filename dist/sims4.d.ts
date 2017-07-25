@@ -61,6 +61,13 @@ declare module "io" {
         private _expand();
         private _arrayCopy(src1, src2, dest?);
     }
+    export class BitConverter {
+        private static _readNumber(data, offset, size, signed);
+        static toUInt16(data: Uint8Array | Blob, offset: number): number;
+        static toInt16(data: Uint8Array | Blob, offset: number): number;
+        static toUInt32(data: Uint8Array | Blob, offset: number): number;
+        static toInt32(data: Uint8Array | Blob, offset: number): number;
+    }
 }
 declare module "package" {
     import * as IO from "io";
@@ -180,18 +187,19 @@ declare module "img" {
     export class PixelFormat {
         readonly size: number;
         pixelFormatFlag: PixelFormatFlags;
-        Fourcc: FourCC;
         RGBBitCount: number;
         redBitMask: number;
         greenBitMask: number;
         blueBitMask: number;
         alphaBitMask: number;
         fourcc: FourCC;
+        Fourcc: FourCC;
         static readonly StructureSize: number;
         constructor(data?: Blob | Uint8Array | IO.BinaryReader);
+        unParse(w: IO.BinaryWriter): void;
     }
     export class RLEInfo {
-        readonly Signature: number;
+        static readonly Signature: number;
         size(): number;
         headerFlags: HeaderFlags;
         Height: number;
@@ -208,6 +216,7 @@ declare module "img" {
         mipCount: number;
         Unknown0E: number;
         constructor(data: Blob | Uint8Array | IO.BinaryReader);
+        unParse(w: IO.BinaryWriter): void;
     }
     export class MipHeader {
         CommandOffset: number;
@@ -220,7 +229,9 @@ declare module "img" {
     export class RLEWrapper extends Package.ResourceWrapper {
         private info;
         private MipHeaders;
+        private _data;
         protected parse(data: Uint8Array | Blob): void;
+        toDDS(): Uint8Array;
     }
 }
 declare module "rcol" {
