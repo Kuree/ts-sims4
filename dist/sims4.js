@@ -764,6 +764,110 @@ define("img", ["require", "exports", "io", "package"], function (require, export
             }
             this._data = data;
         }
+        UncompressDXT5(data) {
+            var imageData = new ImageData(this.info.Width, this.info.Height);
+            var r = new IO.BinaryReader(data);
+            for (var j = 0; j < this.info.Height; j += 4) {
+                for (var i = 0; i < this.info.Width; i += 4) {
+                    this.DecompressBlockDXT5(i, j, r.readBytes(16), imageData);
+                }
+            }
+            return imageData;
+        }
+        DecompressBlockDXT5(x, y, blockStorage, imageData) {
+            var alpha0 = blockStorage[0];
+            var alpha1 = blockStorage[1];
+            var bitOffset = 2;
+            var alphaCode1 = (blockStorage[bitOffset + 2] | (blockStorage[bitOffset + 3] << 8) | (blockStorage[bitOffset + 4] << 16) | (blockStorage[bitOffset + 5] << 24)) & 0xFFFFFFFF;
+            var alphaCode2 = (blockStorage[bitOffset + 0] | (blockStorage[bitOffset + 1] << 8)) & 0xFFFF;
+            var color0 = (blockStorage[8] | blockStorage[9] << 8) & 0xFFFF;
+            var color1 = (blockStorage[10] | blockStorage[11] << 8) & 0xFFFF;
+            var temp;
+            temp = (color0 >> 11) * 255 + 16;
+            var r0 = 0xFF & ((temp / 32 + temp) / 32);
+            temp = ((color0 & 0x07E0) >> 5) * 255 + 32;
+            var g0 = 0xFF & ((temp / 64 + temp) / 64);
+            temp = (color0 & 0x001F) * 255 + 16;
+            var b0 = 0xFF & ((temp / 32 + temp) / 32);
+            temp = (color1 >> 11) * 255 + 16;
+            var r1 = 0xFF & ((temp / 32 + temp) / 32);
+            temp = ((color1 & 0x07E0) >> 5) * 255 + 32;
+            var g1 = 0xFF & ((temp / 64 + temp) / 64);
+            temp = (color1 & 0x001F) * 255 + 16;
+            var b1 = 0xFF & ((temp / 32 + temp) / 32);
+            var code = 0xFFFFFFFF & (blockStorage[12] | blockStorage[13] << 8 | blockStorage[14] << 16 | blockStorage[15] << 24);
+            for (var j = 0; j < 4; j++) {
+                for (var i = 0; i < 4; i++) {
+                    var alphaCodeIndex = 3 * (4 * j + i);
+                    var alphaCode;
+                    if (alphaCodeIndex <= 12) {
+                        alphaCode = (alphaCode2 >> alphaCodeIndex) & 0x07;
+                    }
+                    else if (alphaCodeIndex == 15) {
+                        alphaCode = 0xFFFFFFFF & ((alphaCode2 >> 15) | ((alphaCode1 << 1) & 0x06));
+                    }
+                    else {
+                        alphaCode = 0xFFFFFFFF & ((alphaCode1 >> (alphaCodeIndex - 16)) & 0x07);
+                    }
+                    var finalAlpha;
+                    if (alphaCode == 0) {
+                        finalAlpha = alpha0;
+                    }
+                    else if (alphaCode == 1) {
+                        finalAlpha = alpha1;
+                    }
+                    else {
+                        if (alpha0 > alpha1) {
+                            finalAlpha = 0xFF & (((8 - alphaCode) * alpha0 + (alphaCode - 1) * alpha1) / 7);
+                        }
+                        else {
+                            if (alphaCode == 6)
+                                finalAlpha = 0;
+                            else if (alphaCode == 7)
+                                finalAlpha = 255;
+                            else
+                                finalAlpha = 0xFF & (((6 - alphaCode) * alpha0 + (alphaCode - 1) * alpha1) / 5);
+                        }
+                    }
+                    var colorCode = 0xFF & ((code >> 2 * (4 * j + i)) & 0x03);
+                    var r;
+                    var g;
+                    var b;
+                    var a = finalAlpha;
+                    switch (colorCode) {
+                        case 0:
+                            r = r0;
+                            g = g0;
+                            b = b0;
+                            break;
+                        case 1:
+                            r = r1;
+                            g = g1;
+                            b = b1;
+                            break;
+                        case 2:
+                            r = (2 * r0 + r1) / 3;
+                            g = (2 * g0 + g1) / 3;
+                            b = (2 * b0 + b1) / 3;
+                            break;
+                        case 3:
+                            r = (r0 + 2 * r1) / 3;
+                            g = (g0 + 2 * g1) / 3;
+                            b = (b0 + 2 * b1) / 3;
+                            break;
+                    }
+                    var width = this.info.Width;
+                    var height = this.info.Height;
+                    var index = (x + i + (y + j) * width) * 4;
+                    var value = [r, g, b, a];
+                    imageData.data.set(value, index);
+                }
+            }
+        }
+        toImageData() {
+            var dds = this.toDDS();
+            return this.UncompressDXT5(dds.subarray(128));
+        }
         toDDS() {
             var w = new IO.BinaryWriter();
             this.info.unParse(w);

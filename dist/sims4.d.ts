@@ -231,6 +231,9 @@ declare module "img" {
         private MipHeaders;
         private _data;
         protected parse(data: Uint8Array | Blob): void;
+        private UncompressDXT5(data);
+        private DecompressBlockDXT5(x, y, blockStorage, imageData);
+        toImageData(): ImageData;
         toDDS(): Uint8Array;
     }
 }
