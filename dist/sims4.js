@@ -612,6 +612,290 @@ define("cas", ["require", "exports", "package", "io"], function (require, export
     }
     exports.LOD = LOD;
 });
+define("rcol", ["require", "exports", "io", "package"], function (require, exports, IO, Package) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    class RCOLChunk {
+        constructor(data) {
+            this._data = data;
+            this.parse(data);
+        }
+        parse(data) {
+        }
+    }
+    exports.RCOLChunk = RCOLChunk;
+    class VertexFormat {
+        constructor(data) {
+            var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
+            this.dataType = br.readUInt32();
+            this.subType = br.readUInt32();
+            this.bytesPerElement = br.readUInt8();
+        }
+    }
+    exports.VertexFormat = VertexFormat;
+    var VertexDataType;
+    (function (VertexDataType) {
+        VertexDataType[VertexDataType["Unknown1"] = 0] = "Unknown1";
+        VertexDataType[VertexDataType["Position"] = 1] = "Position";
+        VertexDataType[VertexDataType["Normal"] = 2] = "Normal";
+        VertexDataType[VertexDataType["UV"] = 3] = "UV";
+        VertexDataType[VertexDataType["BoneAssignment"] = 4] = "BoneAssignment";
+        VertexDataType[VertexDataType["Unknown2"] = 4] = "Unknown2";
+        VertexDataType[VertexDataType["TangentNormal"] = 6] = "TangentNormal";
+        VertexDataType[VertexDataType["Color"] = 7] = "Color";
+        VertexDataType[VertexDataType["Unknown3"] = 8] = "Unknown3";
+        VertexDataType[VertexDataType["Unknown4"] = 9] = "Unknown4";
+        VertexDataType[VertexDataType["VertexID"] = 10] = "VertexID";
+    })(VertexDataType = exports.VertexDataType || (exports.VertexDataType = {}));
+    class Vertex {
+        constructor(type, value) {
+            this.type = type;
+            this.value = value;
+        }
+        toString() {
+            return "Type: " + this.type + "Value: " + this.value.toString();
+        }
+    }
+    exports.Vertex = Vertex;
+    class VertexData {
+        constructor(data, vertexFormatList) {
+            var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
+            this.vData = new Array(vertexFormatList.length);
+            for (var i = 0; i < vertexFormatList.length; i++) {
+                var vf = vertexFormatList[i];
+                if (vf.dataType == 1 || vf.dataType == 2 || vf.dataType == 6) {
+                    this.vData[i] = new Vertex(vf.dataType, [br.readFloat(), br.readFloat(), br.readFloat()]);
+                }
+                else if (vf.dataType == 4 || vf.dataType == 5 || vf.dataType == 7 || vf.dataType == 10) {
+                    this.vData[i] = new Vertex(vf.dataType, [br.readUInt32()]);
+                }
+                else if (vf.dataType == 3) {
+                    this.vData[i] = new Vertex(vf.dataType, [br.readFloat(), br.readFloat()]);
+                }
+            }
+        }
+    }
+    exports.VertexData = VertexData;
+    class GEOMRCOLChunk extends RCOLChunk {
+        parse(data) {
+            var br = new IO.BinaryReader(data);
+            var fourcc = br.readString(4);
+            if (fourcc != GEOMRCOLChunk.FOURCC) {
+                throw new TypeError("Invalild GEOM chunk");
+            }
+            this.version = br.readUInt32();
+            var tgiOffset = br.readUInt32();
+            var tgiSize = br.readUInt32();
+            this.embeddedID = br.readUInt32();
+            if (this.embeddedID !== 0) {
+                var mtnfSize = br.readUInt32();
+                br.readBytes(mtnfSize);
+            }
+            this.mergeGroup = br.readUInt32();
+            this.sortOrder = br.readUInt32();
+            var numVerts = br.readInt32();
+            var fCount = br.readUInt32();
+            this.vertexFormatList = new Array(fCount);
+            for (var i = 0; i < fCount; i++) {
+                this.vertexFormatList[i] = new VertexFormat(br);
+            }
+            this.vertexDataList = new Array(numVerts);
+            for (var i = 0; i < numVerts; i++) {
+                this.vertexDataList[i] = new VertexData(br, this.vertexFormatList);
+            }
+            var itemCount = br.readUInt32();
+            if (itemCount != 1) {
+                throw new TypeError("Invalid GEOM. Get itemCount: " + itemCount + " expect 1");
+            }
+            var bytesPerFacePoint = br.readUInt8();
+            if (bytesPerFacePoint != 2) {
+                throw new TypeError("Invalid GEOM. Get itemCount: " + bytesPerFacePoint + " expect 2");
+            }
+            var faceCount = br.readUInt32();
+            this.facePointList = new Uint16Array(faceCount);
+            for (var i = 0; i < faceCount; i++) {
+                this.facePointList[i] = br.readUInt16();
+            }
+        }
+        getThreeJsJSONData() {
+            var vertexData = this._getVertexData();
+            var vertices = vertexData.pos;
+            var faces = this._getFaceData(vertexData);
+            var json_data = {
+                "metadata": { "formatVersion": 3 },
+                "materials": [],
+                "vertices": vertices,
+                "morphTargets": [],
+                "normals": vertexData.normal,
+                "colors": [],
+                "uvs": [vertexData.uv],
+                "faces": faces
+            };
+            return json_data;
+        }
+        _getVertexData() {
+            var numVertex = this.vertexDataList.length;
+            var result = {
+                "pos": new Float32Array(numVertex * 3),
+                "uv": new Float32Array(numVertex * 2),
+                "normal": new Float32Array(numVertex * 3)
+            };
+            for (var i = 0; i < numVertex; i++) {
+                var v = this.vertexDataList[i];
+                var posV = v.vData.find(entry => { return entry.type === VertexDataType.Position; });
+                if (!posV) {
+                    throw new TypeError("Malformed data");
+                }
+                var uvV = v.vData.find(entry => { return entry.type === VertexDataType.UV; });
+                if (!uvV) {
+                    throw new TypeError("Malformed data");
+                }
+                var normalV = v.vData.find(entry => { return entry.type === VertexDataType.Normal; });
+                if (!normalV) {
+                    throw new TypeError("Malformed data");
+                }
+                result.pos[i * 3] = posV.value[0];
+                result.pos[i * 3 + 1] = posV.value[1];
+                result.pos[i * 3 + 2] = posV.value[2];
+                result.uv[i * 2] = uvV.value[0];
+                result.uv[i * 2 + 1] = uvV.value[1];
+                result.normal[i * 3] = normalV.value[0];
+                result.normal[i * 3 + 1] = normalV.value[1];
+                result.normal[i * 3 + 2] = normalV.value[2];
+            }
+            return result;
+        }
+        _getFaceData(vertexData) {
+            var hasUV = false;
+            var hasNormal = false;
+            var flag = 0;
+            var size = 3 + 1;
+            if (vertexData.uv.length > 0) {
+                hasUV = true;
+                flag = flag | (1 << 3);
+                size += 3;
+            }
+            if (vertexData.normal.length > 0) {
+                hasNormal = true;
+                flag = flag | (1 << 5);
+                size += 3;
+            }
+            var result = new Uint32Array(this.facePointList.length / 3 * size);
+            var counter = 0;
+            var faceCounter = 0;
+            while (counter < result.length) {
+                if (counter % size == 0) {
+                    result[counter++] = flag;
+                }
+                var face0 = this.facePointList[faceCounter++];
+                var face1 = this.facePointList[faceCounter++];
+                var face2 = this.facePointList[faceCounter++];
+                result[counter++] = face0;
+                result[counter++] = face1;
+                result[counter++] = face2;
+                if (hasUV) {
+                    result[counter++] = face0;
+                    result[counter++] = face1;
+                    result[counter++] = face2;
+                }
+                if (hasNormal) {
+                    result[counter++] = face0;
+                    result[counter++] = face1;
+                    result[counter++] = face2;
+                }
+            }
+            return result;
+        }
+    }
+    GEOMRCOLChunk.FOURCC = "GEOM";
+    exports.GEOMRCOLChunk = GEOMRCOLChunk;
+    class RCOLWrapper extends Package.ResourceWrapper {
+        parse(data) {
+            var br = new IO.BinaryReader(data);
+            this.version = br.readUInt32();
+            var internalChunkCount = br.readUInt32();
+            this.index3 = br.readUInt32();
+            var externalCount = br.readUInt32();
+            var internalCount = br.readUInt32();
+            this.internalTGIList = new Array(internalCount);
+            for (var i = 0; i < internalCount; i++) {
+                var instance = br.readUInt64();
+                var type = br.readUInt32();
+                var group = br.readUInt32();
+                this.internalTGIList[i] = new Package.TGIBlock(type, group, instance);
+            }
+            this.externalTGIList = new Array(externalCount);
+            for (var i = 0; i < externalCount; i++) {
+                var instance = br.readUInt64();
+                var type = br.readUInt32();
+                var group = br.readUInt32();
+                this.externalTGIList[i] = new Package.TGIBlock(type, group, instance);
+            }
+            this.rcolChunkList = new Array(internalCount);
+            for (var i = 0; i < internalCount; i++) {
+                var position = br.readUInt32();
+                var size = br.readUInt32();
+                var chunkData = data.slice(position, position + size);
+                this.rcolChunkList[i] = getRCOLChunk(chunkData);
+            }
+        }
+    }
+    exports.RCOLWrapper = RCOLWrapper;
+    const RCOLRegister = {
+        "*": RCOLChunk,
+        "GEOM": GEOMRCOLChunk
+    };
+    function getRCOLChunk(data) {
+        var br = new IO.BinaryReader(data);
+        var type = br.readString(4);
+        var chunk = RCOLRegister[type];
+        if (chunk) {
+            var result = new chunk(data);
+            return result;
+        }
+        else {
+            return new RCOLChunk(data);
+        }
+    }
+    exports.getRCOLChunk = getRCOLChunk;
+});
+define("helper", ["require", "exports", "package", "cas", "rcol"], function (require, exports, Package, CAS, RCOL) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    function find_geom(data) {
+        var pack = new Package.Package(data);
+        var casp = pack.ResourceEntryList.find(entry => entry.ResourceType == 0x034AEECB);
+        if (!casp) {
+            return undefined;
+        }
+        var w = new CAS.CASPWrapper(pack.getResourceStream(casp));
+        var lods = w.lodList;
+        var geomList = Array(lods.length);
+        for (var i = 0; i < geomList.length; i++) {
+            var lod = lods[i];
+            geomList[lod.level] = new Array(lod.lodKey.length);
+            for (var j = 0; j < lod.lodKey.length; j++) {
+                var tgiIndex = lod.lodKey[j];
+                if (tgiIndex >= w.tgiList.length) {
+                    throw Error("Cannot find TGI index " + tgiIndex);
+                }
+                var tgi = w.tgiList[tgiIndex];
+                if (tgi.ResourceType !== 0x015A1849) {
+                    throw Error("Corrupted CASP file");
+                }
+                var geomStream = pack.getResourceStream(tgi);
+                if (!geomStream) {
+                    throw new Error("Unable to find required GEOM inside the package file");
+                }
+                var rcol = new RCOL.RCOLWrapper(geomStream);
+                var geom = rcol.rcolChunkList[0];
+                geomList[lod.level][j] = geom;
+            }
+        }
+        return geomList;
+    }
+    exports.find_geom = find_geom;
+});
 define("img", ["require", "exports", "io", "package"], function (require, exports, IO, Package) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -931,252 +1215,5 @@ define("img", ["require", "exports", "io", "package"], function (require, export
         }
     }
     exports.RLEWrapper = RLEWrapper;
-});
-define("rcol", ["require", "exports", "io", "package"], function (require, exports, IO, Package) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    class RCOLChunk {
-        constructor(data) {
-            this._data = data;
-            this.parse(data);
-        }
-        parse(data) {
-        }
-    }
-    exports.RCOLChunk = RCOLChunk;
-    class VertexFormat {
-        constructor(data) {
-            var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
-            this.dataType = br.readUInt32();
-            this.subType = br.readUInt32();
-            this.bytesPerElement = br.readUInt8();
-        }
-    }
-    exports.VertexFormat = VertexFormat;
-    var VertexDataType;
-    (function (VertexDataType) {
-        VertexDataType[VertexDataType["Unknown1"] = 0] = "Unknown1";
-        VertexDataType[VertexDataType["Position"] = 1] = "Position";
-        VertexDataType[VertexDataType["Normal"] = 2] = "Normal";
-        VertexDataType[VertexDataType["UV"] = 3] = "UV";
-        VertexDataType[VertexDataType["BoneAssignment"] = 4] = "BoneAssignment";
-        VertexDataType[VertexDataType["Unknown2"] = 4] = "Unknown2";
-        VertexDataType[VertexDataType["TangentNormal"] = 6] = "TangentNormal";
-        VertexDataType[VertexDataType["Color"] = 7] = "Color";
-        VertexDataType[VertexDataType["Unknown3"] = 8] = "Unknown3";
-        VertexDataType[VertexDataType["Unknown4"] = 9] = "Unknown4";
-        VertexDataType[VertexDataType["VertexID"] = 10] = "VertexID";
-    })(VertexDataType = exports.VertexDataType || (exports.VertexDataType = {}));
-    class Vertex {
-        constructor(type, value) {
-            this.type = type;
-            this.value = value;
-        }
-        toString() {
-            return "Type: " + this.type + "Value: " + this.value.toString();
-        }
-    }
-    exports.Vertex = Vertex;
-    class VertexData {
-        constructor(data, vertexFormatList) {
-            var br = data instanceof IO.BinaryReader ? data : new IO.BinaryReader(data);
-            this.vData = new Array(vertexFormatList.length);
-            for (var i = 0; i < vertexFormatList.length; i++) {
-                var vf = vertexFormatList[i];
-                if (vf.dataType == 1 || vf.dataType == 2 || vf.dataType == 6) {
-                    this.vData[i] = new Vertex(vf.dataType, [br.readFloat(), br.readFloat(), br.readFloat()]);
-                }
-                else if (vf.dataType == 4 || vf.dataType == 5 || vf.dataType == 7 || vf.dataType == 10) {
-                    this.vData[i] = new Vertex(vf.dataType, [br.readUInt32()]);
-                }
-                else if (vf.dataType == 3) {
-                    this.vData[i] = new Vertex(vf.dataType, [br.readFloat(), br.readFloat()]);
-                }
-            }
-        }
-    }
-    exports.VertexData = VertexData;
-    class GEOMRCOLChunk extends RCOLChunk {
-        parse(data) {
-            var br = new IO.BinaryReader(data);
-            var fourcc = br.readString(4);
-            if (fourcc != GEOMRCOLChunk.FOURCC) {
-                throw new TypeError("Invalild GEOM chunk");
-            }
-            this.version = br.readUInt32();
-            var tgiOffset = br.readUInt32();
-            var tgiSize = br.readUInt32();
-            this.embeddedID = br.readUInt32();
-            if (this.embeddedID !== 0) {
-                var mtnfSize = br.readUInt32();
-                br.readBytes(mtnfSize);
-            }
-            this.mergeGroup = br.readUInt32();
-            this.sortOrder = br.readUInt32();
-            var numVerts = br.readInt32();
-            var fCount = br.readUInt32();
-            this.vertexFormatList = new Array(fCount);
-            for (var i = 0; i < fCount; i++) {
-                this.vertexFormatList[i] = new VertexFormat(br);
-            }
-            this.vertexDataList = new Array(numVerts);
-            for (var i = 0; i < numVerts; i++) {
-                this.vertexDataList[i] = new VertexData(br, this.vertexFormatList);
-            }
-            var itemCount = br.readUInt32();
-            if (itemCount != 1) {
-                throw new TypeError("Invalid GEOM. Get itemCount: " + itemCount + " expect 1");
-            }
-            var bytesPerFacePoint = br.readUInt8();
-            if (bytesPerFacePoint != 2) {
-                throw new TypeError("Invalid GEOM. Get itemCount: " + bytesPerFacePoint + " expect 2");
-            }
-            var faceCount = br.readUInt32();
-            this.facePointList = new Uint16Array(faceCount);
-            for (var i = 0; i < faceCount; i++) {
-                this.facePointList[i] = br.readUInt16();
-            }
-        }
-        getThreeJsJSONData() {
-            var vertexData = this._getVertexData();
-            var vertices = vertexData.pos;
-            var faces = this._getFaceData(vertexData);
-            var json_data = {
-                "metadata": { "formatVersion": 3 },
-                "materials": [],
-                "vertices": vertices,
-                "morphTargets": [],
-                "normals": vertexData.normal,
-                "colors": [],
-                "uvs": [vertexData.uv],
-                "faces": faces
-            };
-            return json_data;
-        }
-        _getVertexData() {
-            var numVertex = this.vertexDataList.length;
-            var result = {
-                "pos": new Float32Array(numVertex * 3),
-                "uv": new Float32Array(numVertex * 2),
-                "normal": new Float32Array(numVertex * 3)
-            };
-            for (var i = 0; i < numVertex; i++) {
-                var v = this.vertexDataList[i];
-                var posV = v.vData.find(entry => { return entry.type === VertexDataType.Position; });
-                if (!posV) {
-                    throw new TypeError("Malformed data");
-                }
-                var uvV = v.vData.find(entry => { return entry.type === VertexDataType.UV; });
-                if (!uvV) {
-                    throw new TypeError("Malformed data");
-                }
-                var normalV = v.vData.find(entry => { return entry.type === VertexDataType.Normal; });
-                if (!normalV) {
-                    throw new TypeError("Malformed data");
-                }
-                result.pos[i * 3] = posV.value[0];
-                result.pos[i * 3 + 1] = posV.value[1];
-                result.pos[i * 3 + 2] = posV.value[2];
-                result.uv[i * 2] = uvV.value[0];
-                result.uv[i * 2 + 1] = uvV.value[1];
-                result.normal[i * 3] = normalV.value[0];
-                result.normal[i * 3 + 1] = normalV.value[1];
-                result.normal[i * 3 + 2] = normalV.value[2];
-            }
-            return result;
-        }
-        _getFaceData(vertexData) {
-            var hasUV = false;
-            var hasNormal = false;
-            var flag = 0;
-            var size = 3 + 1;
-            if (vertexData.uv.length > 0) {
-                hasUV = true;
-                flag = flag | (1 << 3);
-                size += 3;
-            }
-            if (vertexData.normal.length > 0) {
-                hasNormal = true;
-                flag = flag | (1 << 5);
-                size += 3;
-            }
-            var result = new Uint32Array(this.facePointList.length / 3 * size);
-            var counter = 0;
-            var faceCounter = 0;
-            while (counter < result.length) {
-                if (counter % size == 0) {
-                    result[counter++] = flag;
-                }
-                var face0 = this.facePointList[faceCounter++];
-                var face1 = this.facePointList[faceCounter++];
-                var face2 = this.facePointList[faceCounter++];
-                result[counter++] = face0;
-                result[counter++] = face1;
-                result[counter++] = face2;
-                if (hasUV) {
-                    result[counter++] = face0;
-                    result[counter++] = face1;
-                    result[counter++] = face2;
-                }
-                if (hasNormal) {
-                    result[counter++] = face0;
-                    result[counter++] = face1;
-                    result[counter++] = face2;
-                }
-            }
-            return result;
-        }
-    }
-    GEOMRCOLChunk.FOURCC = "GEOM";
-    exports.GEOMRCOLChunk = GEOMRCOLChunk;
-    class RCOLWrapper extends Package.ResourceWrapper {
-        parse(data) {
-            var br = new IO.BinaryReader(data);
-            this.version = br.readUInt32();
-            var internalChunkCount = br.readUInt32();
-            this.index3 = br.readUInt32();
-            var externalCount = br.readUInt32();
-            var internalCount = br.readUInt32();
-            this.internalTGIList = new Array(internalCount);
-            for (var i = 0; i < internalCount; i++) {
-                var instance = br.readUInt64();
-                var type = br.readUInt32();
-                var group = br.readUInt32();
-                this.internalTGIList[i] = new Package.TGIBlock(type, group, instance);
-            }
-            this.externalTGIList = new Array(externalCount);
-            for (var i = 0; i < externalCount; i++) {
-                var instance = br.readUInt64();
-                var type = br.readUInt32();
-                var group = br.readUInt32();
-                this.externalTGIList[i] = new Package.TGIBlock(type, group, instance);
-            }
-            this.rcolChunkList = new Array(internalCount);
-            for (var i = 0; i < internalCount; i++) {
-                var position = br.readUInt32();
-                var size = br.readUInt32();
-                var chunkData = data.slice(position, position + size);
-                this.rcolChunkList[i] = getRCOLChunk(chunkData);
-            }
-        }
-    }
-    exports.RCOLWrapper = RCOLWrapper;
-    const RCOLRegister = {
-        "*": RCOLChunk,
-        "GEOM": GEOMRCOLChunk
-    };
-    function getRCOLChunk(data) {
-        var br = new IO.BinaryReader(data);
-        var type = br.readString(4);
-        var chunk = RCOLRegister[type];
-        if (chunk) {
-            var result = new chunk(data);
-            return result;
-        }
-        else {
-            return new RCOLChunk(data);
-        }
-    }
-    exports.getRCOLChunk = getRCOLChunk;
 });
 //# sourceMappingURL=sims4.js.map
