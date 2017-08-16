@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>Sims 4 CAS Viewer</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+	</head>
+	<body>
+
+    <input  type="file" id="package_file" style="z-index: 1000">
+		<script src="https://cdn.jsdelivr.net/threejs/0.85.2/three.js"></script>
+    <script data-main="helper" src="https://cdn.jsdelivr.net/requirejs/2.1.22/require.min.js"></script>
+		<script>
+     require.config({
+        paths:{
+          "pako": "https://cdn.jsdelivr.net/pako/1.0.5/pako.min",
+          "utf8": "https://cdn.jsdelivr.net/utf8/2.1.2/utf8",
+          //"rcol": "https://rawgithub.com/Kuree/ts-sims4/master/dist/sims4"
+          "helper": "dist/sims4",
+          "rcol": "dist/sims4"
+        }
+      });
+      
+      require(["helper", "rcol"], function(helper ,rcol){
+        var scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+        var renderer = new THREE.WebGLRenderer();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.body.appendChild( renderer.domElement );
+
+        function readPackageFile(e){
+          var file = e.target.files[0];
+          if(!file) return;
+          var fr = new FileReader();
+          fr.onload = function() {
+            var f = new Uint8Array(fr.result);
+            try{
+              var list = helper.find_geom(f);
+              var geomList = list[0];
+              for(var j = 0; j < geomList.length; j++){
+                var geom = geomList[j];
+                var jsonData = geom.getThreeJsJSONData();
+
+                var loader = new THREE.JSONLoader();
+                var result = loader.parse(jsonData);
+                var geometry = result.geometry;
+                var material = new THREE.MeshNormalMaterial();
+                var mesh = new THREE.Mesh(geometry, material);
+                scene.add(mesh);
+            }
+            
+            }
+            catch(e) {
+              alert(e);
+            }
+
+            camera.position.z = 0.5;
+            renderer.render(scene, camera);
+          }
+
+          fr.readAsArrayBuffer(file);
+        }
+
+        document.getElementById("package_file").addEventListener("change", readPackageFile, false);
+
+      });
+
+      
+
+		</script>
+	</body>
+</html>
