@@ -35,7 +35,7 @@ export class CASPWrapper extends Package.ResourceWrapper {
     br.readUInt16();  // secondarySortIndex
     this.propertyID = br.readUInt32();  // propertyID
     br.readUInt32();  // auralMaterialHash
-    br.readUInt8();   //parmflags
+    var paramFlags = br.readUInt8();   // parmflags
 
     // parmFlags2
     if (this.version >= 39) { br.readUInt8(); }
@@ -52,15 +52,20 @@ export class CASPWrapper extends Package.ResourceWrapper {
 
     // flags
     var tagCount = br.readUInt32();
-    br.readBytes(tagCount * 4);
+    if (this.version >= 37) {
+      br.readBytes(tagCount * 6);
+    } else {
+      br.readBytes(tagCount * 4);
+    }
+    
 
-    br.readUInt32();  // deprecatedPrice
+    var deprecatedPrice = br.readUInt32();  // deprecatedPrice
     br.readUInt32();  // partTitleKey
     br.readUInt32();  // partDesptionKey
     br.readUInt8();   // unique texture space
     br.readUInt32();  // bodyType
     br.readUInt32();  // bodySubType
-    br.readUInt32(); // age gender
+    var ageGender = br.readUInt32(); // age gender
     
     if (this.version >= 0x20) {
       br.readUInt32();
@@ -141,10 +146,13 @@ export class CASPWrapper extends Package.ResourceWrapper {
       br.readUInt8();
     }
 
+    
+    // br.seek(tgiPos);
     if (br.position() != tgiPos) {
       throw new TypeError("Invalid CASP format. \ Version: " + this.version + " \
       TGI position at " + tgiPos + " now at " + br.position());
     }
+    
 
     var numTGI = br.readUInt8();
     this.tgiList = new Array<Package.ITGIBlock>(numTGI);

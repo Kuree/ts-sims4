@@ -485,7 +485,7 @@ define("cas", ["require", "exports", "package", "io"], function (require, export
             br.readUInt16();
             this.propertyID = br.readUInt32();
             br.readUInt32();
-            br.readUInt8();
+            var paramFlags = br.readUInt8();
             if (this.version >= 39) {
                 br.readUInt8();
             }
@@ -500,14 +500,19 @@ define("cas", ["require", "exports", "package", "io"], function (require, export
                 br.readUInt32();
             }
             var tagCount = br.readUInt32();
-            br.readBytes(tagCount * 4);
-            br.readUInt32();
+            if (this.version >= 37) {
+                br.readBytes(tagCount * 6);
+            }
+            else {
+                br.readBytes(tagCount * 4);
+            }
+            var deprecatedPrice = br.readUInt32();
             br.readUInt32();
             br.readUInt32();
             br.readUInt8();
             br.readUInt32();
             br.readUInt32();
-            br.readUInt32();
+            var ageGender = br.readUInt32();
             if (this.version >= 0x20) {
                 br.readUInt32();
             }
