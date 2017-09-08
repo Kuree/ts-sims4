@@ -37,6 +37,9 @@
         var gui = new dat.GUI();
         gui.add(textGUI, 'open').name("Click here to open");
         gui.add(textGUI, 'faces').name("Face count");
+
+        var lodControl = undefined;
+        var geomControl = undefined;
         
         gui.__controllers[1].domElement.firstChild.disabled = true
         
@@ -78,31 +81,48 @@
             });
 		}
 		
-		function loadLOD(lodList, i){
-		    console.log("Load LOD " + i);
-		    var geomList = lodList[i];
-		    for(var j = 0; j < geomList.length; j++){
-                var geom = geomList[j];
-                var jsonData = geom.getThreeJsJSONData();
+    function loadLOD(lodList, i, j){
+        console.log("Load LOD " + i + " GEOM " + j);
+        var geomList = lodList[i];
+        var geom = geomList[j];
+        var jsonData = geom.getThreeJsJSONData();
     
-                var loader = new THREE.JSONLoader();
-                var result = loader.parse(jsonData);
-                var geometry = result.geometry;
-                var material = new THREE.MeshNormalMaterial();
-                var mesh = new THREE.Mesh(geometry, material);
-                scene.add(mesh);
-		    }
-            
-            var center = geometry.center();
-            camera.position.z = 1;
-            render();
-            textGUI.faces = renderer.info.render.faces;
-            for (var i in gui.__controllers) {
-              gui.__controllers[i].updateDisplay();
-            }
+        var loader = new THREE.JSONLoader();
+        var result = loader.parse(jsonData);
+        var geometry = result.geometry;
+        var material = new THREE.MeshNormalMaterial();
+        var mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+        
+        var center = geometry.center();
+        camera.position.z = 1;
+        render();
+
+        // update the geom one
+        var geomText = {}
+        for(var index = 0; index < geomList.length;  index++){
+            geomText["GEOM "+ index] = index;
+        }
+
+        textGUI["GEOM"] = j;
+        if(geomControl){
+          gui.remove(geomControl);
+        }
+
+        geomControl = gui.add(textGUI, "GEOM", geomText);
+        geomControl.onChange(function(changedIndex){
+          changedIndex = parseInt(changedIndex);
+          clearScene();
+          loadLOD(lodList, i, changedIndex);
+        });
+
+        textGUI.faces = renderer.info.render.faces;
+        for (var index in gui.__controllers) {
+          gui.__controllers[index].updateDisplay();
+        }
 		}
 
-        var lodControl = undefined;
+        
           
         function readPackageFile(e){
           var file = e.target.files[0];
@@ -123,10 +143,11 @@
                   gui.remove(lodControl);
               }
               lodControl = gui.add(textGUI, "LOD", lodText);
-              loadLOD(list, 0);
+              loadLOD(list, 0, 0);
               lodControl.onChange(function(index){
+                  index = parseInt(index);
                   clearScene();
-                  loadLOD(list, index);
+                  loadLOD(list, index, 0);
               });
             
             }

@@ -81,6 +81,32 @@ define("io", ["require", "exports", "utf8"], function (require, exports, utf8) {
             var result = utf8.decode(str);
             return result;
         }
+        read7BitLength() {
+            var length = 0;
+            var i = 0;
+            while (true) {
+                var byte = this.readUInt8();
+                var num = byte & 0x7F;
+                if (byte & 0x80) {
+                    length += num << i;
+                    i += 7;
+                }
+                else {
+                    length += num << i;
+                    break;
+                }
+            }
+            return length;
+        }
+        read7bitString() {
+            var length = this.read7BitLength();
+            var bytes = this.readBytes(length);
+            var str = "";
+            for (var i = 0; i < bytes.length;) {
+                str += String.fromCharCode(bytes[i++] * 256 + bytes[i++]);
+            }
+            return str;
+        }
         seek(pos) {
             this._pos = pos;
             this._checkSize(0);
@@ -479,8 +505,7 @@ define("cas", ["require", "exports", "package", "io"], function (require, export
             var dataSize = br.readUInt32();
             var tgiPos = br.position() + dataSize;
             this.presetCount = br.readUInt32();
-            var charCount = br.readUInt8();
-            this.name = br.readString(charCount);
+            this.name = br.read7bitString();
             this.sortPriority = br.readFloat();
             br.readUInt16();
             this.propertyID = br.readUInt32();

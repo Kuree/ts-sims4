@@ -23,6 +23,8 @@ declare module "io" {
         readBytes(size: number): Uint8Array;
         readChar(): string;
         readString(length: number): string;
+        read7BitLength(): number;
+        read7bitString(): string;
         seek(pos: number): void;
         position(): number;
         size(): number;

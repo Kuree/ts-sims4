@@ -27,8 +27,7 @@ export class CASPWrapper extends Package.ResourceWrapper {
     var tgiPos = br.position() + dataSize;
 
     this.presetCount = br.readUInt32();
-    var charCount = br.readUInt8();
-    this.name = br.readString(charCount);
+    this.name = br.read7bitString();
 
     // They're not needed for now
     this.sortPriority = br.readFloat();   // sortPriority

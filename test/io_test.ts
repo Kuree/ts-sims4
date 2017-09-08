@@ -110,6 +110,15 @@ describe("Test BinaryReader", () => {
     expect(br.readString(2)).to.equal("42");
   });
 
+  it("read7BitLength()", () => {
+    let buffer = new ArrayBuffer(3);
+    let array = new Uint8Array(buffer);
+    array[0] = 0x8C;
+    array[1] = 0x02;
+    var br = new IO.BinaryReader(array);
+    expect(br.read7BitLength()).to.equal(0x10C);
+  });
+
 
 });
 

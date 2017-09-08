@@ -97,6 +97,35 @@ export class BinaryReader {
     return result;
   }
 
+  read7BitLength(): number{
+    var length = 0;
+    var i = 0;
+    while (true) {
+      var byte = this.readUInt8();
+      var num = byte & 0x7F;
+      if (byte & 0x80) {
+        length += num << i;
+        i += 7;
+      } else {
+        length += num << i;
+        break;
+      }
+    }
+    return length;
+  }
+
+  read7bitString(): string {
+    // whoever decided to use 7 bit encoding to encode string length is stupid.
+    // whoever makes their program generates such long string is even worse.
+    var length = this.read7BitLength();
+    var bytes = this.readBytes(length);
+    var str = "";
+    for (var i = 0; i < bytes.length;) {
+      str += String.fromCharCode(bytes[i++] * 256 + bytes[i++]);
+    }
+    return str;
+  }
+
   seek(pos: number): void {
     this._pos = pos;
     this._checkSize(0);
